@@ -81,6 +81,8 @@ void __quantum__qis__swap(Qubit *, Qubit *);
 void __quantum__qis__cphase(double x, Qubit *src, Qubit *tgt);
 
 Result *__quantum__qis__mz(Qubit *);
+Result *__quantum__qis__mz__to__register(Qubit *, const char *);
+
 }
 
 namespace {
@@ -416,6 +418,16 @@ public:
 
     // Instruction executed, run the measure call
     auto res_ptr = __quantum__qis__mz(qubits[target]);
+    auto res = *reinterpret_cast<bool *>(res_ptr);
+    return res ? 1 : 0;
+  }
+
+  int measure(const std::size_t &target, const std::string& regName) override {
+    // We hit a measure, need to exec / clear instruction queue
+    synchronize();
+
+    // Instruction executed, run the measure call
+    auto res_ptr = __quantum__qis__mz__to__register(qubits[target], regName.c_str());
     auto res = *reinterpret_cast<bool *>(res_ptr);
     return res ? 1 : 0;
   }

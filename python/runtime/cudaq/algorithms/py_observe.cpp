@@ -98,6 +98,21 @@ async_observe_result pyObserveAsync(kernel_builder<> &kernel,
 
 void bindObserve(py::module &mod) {
 
+  mod.def(
+      "observe",
+      [&](py::object kernel, spin_op &spin_operator, py::args args) {
+        if (!py::hasattr(kernel, "kernelFunction"))
+          throw std::runtime_error("Invalid cudaq.kernel type. Did you "
+                                   "decorate the kernel function?");
+        auto kernelName =
+            kernel.attr("kernelFunction").attr("__name__").cast<std::string>();
+        auto &platform = cudaq::get_platform();
+        return details::runObservation([&]() mutable { kernel(*args); },
+                                       spin_operator, platform, -1, kernelName)
+            .value();
+      },
+      py::arg("kernel"), py::arg("spin_operator"), py::kw_only(), "");
+
   // FIXME provide ability to inject noise model here
   mod.def(
       "observe",

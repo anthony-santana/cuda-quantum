@@ -34,15 +34,18 @@ template <typename KernelFunctor>
 std::optional<sample_result>
 runSampling(KernelFunctor &&wrappedKernel, quantum_platform &platform,
             const std::string &kernelName, int shots, std::size_t qpu_id = 0,
-            details::future *futureResult = nullptr) {
+            details::future *futureResult = nullptr,
+            bool overrideHasConditionalsOnMeasurement = false) {
   // Create the execution context.
   auto ctx = std::make_unique<ExecutionContext>("sample", shots);
   ctx->kernelName = kernelName;
 
   // Tell the context if this quantum kernel has
-  // conditionals on measure results
+  // conditionals on measure results. Override this if 
+  // we've been told to
   ctx->hasConditionalsOnMeasureResults =
-      cudaq::kernelHasConditionalFeedback(kernelName);
+      cudaq::kernelHasConditionalFeedback(kernelName) ||
+      overrideHasConditionalsOnMeasurement;
 
   // Indicate that this is an async exec
   ctx->asyncExec = futureResult != nullptr;

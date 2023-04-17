@@ -38,6 +38,7 @@ ConcreteQubitOp(h) ConcreteQubitOp(x) ConcreteQubitOp(y) ConcreteQubitOp(z)
 inline std::size_t qubitToId(qubit &q) { return q.id(); }
 inline bool qubitIsNegative(qubit &q) { return q.is_negative(); }
 
+/// @brief Apply the one qubit operation with runtime information
 template <typename mod = base>
 void oneQubitApplyRuntime(const std::string &gateName,
                           std::vector<std::size_t> &qubitIds,
@@ -213,6 +214,7 @@ void oneQubitApplyControlledRange(QubitRange &ctrls, qubit &target) {
   }                                                                            \
   namespace types {                                                            \
   struct NAME {                                                                \
+    bool hasParam = true;                                                      \
     inline static const std::string name{#NAME};                               \
     void operator()(std::vector<std::size_t> &targets) {                       \
       oneQubitApplyRuntime(name, targets);                                     \
@@ -231,6 +233,37 @@ CUDAQ_QIS_ONE_TARGET_QUBIT_(y)
 CUDAQ_QIS_ONE_TARGET_QUBIT_(z)
 CUDAQ_QIS_ONE_TARGET_QUBIT_(t)
 CUDAQ_QIS_ONE_TARGET_QUBIT_(s)
+
+template <typename mod = base>
+void oneQubitSingleParameterApplyRuntime(
+    const std::string &gateName, double angle,
+    std::vector<std::size_t> &qubitIds, std::vector<bool> qubitIsNegated = {}) {
+
+  // Map the qubits to their unique ids and pack them into a std::array
+  std::size_t nArgs = qubitIds.size();
+  // std::array<std::size_t, nArgs> a{qubitToId(args)...};
+
+  // If there are more than one qubits and mod == base, then
+  // we just want to apply the same gate to all qubits provided
+  if (nArgs > 1 && std::is_same_v<mod, base>) {
+    for (auto &targetId : qubitIds) {
+      std::vector<std::size_t> qs{targetId};
+      getExecutionManager()->apply(gateName, {angle}, {}, qs);
+    }
+    // Nothing left to do, return
+    return;
+  }
+
+  // If we are here, then mod must be ctrl / adj
+  // Extract the controls and the target
+  std::span<std::size_t> qs_span = qubitIds;
+  std::span controls = qs_span.first(nArgs - 1);
+  std::span targets = qs_span.last(1);
+
+  // Apply the gate
+  getExecutionManager()->apply(gateName, {angle}, controls, targets,
+                               std::is_same_v<mod, adj>);
+}
 
 template <typename QuantumOp, typename mod = base, typename ScalarAngle,
           typename... QubitArgs>
@@ -289,11 +322,6 @@ void oneQubitSingleParameterControlledRange(ScalarAngle angle,
 }
 
 #define CUDAQ_QIS_PARAM_ONE_TARGET_(NAME)                                      \
-  namespace types {                                                            \
-  struct NAME {                                                                \
-    inline static const std::string name{#NAME};                               \
-  };                                                                           \
-  }                                                                            \
   template <typename mod = base, typename ScalarAngle, typename... QubitArgs>  \
   void NAME(ScalarAngle angle, QubitArgs &...args) {                           \
     oneQubitSingleParameterApply<qubit_op::NAME##Op, mod>(angle, args...);     \
@@ -303,6 +331,20 @@ void oneQubitSingleParameterControlledRange(ScalarAngle angle,
   void NAME(ScalarAngle angle, QubitRange &ctrls, qubit &target) {             \
     oneQubitSingleParameterControlledRange<qubit_op::NAME##Op, mod>(           \
         angle, ctrls, target);                                                 \
+  }                                                                            \
+  namespace types {                                                            \
+  struct NAME {                                                                \
+    bool hasParam = true;                                                      \
+    inline static const std::string name{#NAME};                               \
+    void operator()(double angle, std::vector<std::size_t> &targets) {         \
+      oneQubitSingleParameterApplyRuntime(name, angle, targets);               \
+    }                                                                          \
+    void ctrl(double angle, std::vector<std::size_t> &controlsAndTarget,       \
+              std::vector<bool> &isNegated) {                                  \
+      oneQubitSingleParameterApplyRuntime<cudaq::ctrl>(                        \
+          name, angle, controlsAndTarget, isNegated);                          \
+    }                                                                          \
+  };                                                                           \
   }
 // FIXME add One Qubit Single Param Broadcast over register with an angle for
 // each
@@ -370,19 +412,21 @@ void exp(QuantumRegister &qubits, ScalarAngle angle, cudaq::spin_op &&op) {
 }
 
 // Measure an individual qubit, return 0,1 as bool
-inline bool mz(qubit &q) { return getExecutionManager()->measure({q.id()}); }
+inline bool mz(qubit &q, std::string regName = "") {
+  return getExecutionManager()->measure({q.id()}, regName);
+}
 
 // Measure an individual qubit in x basis, return 0,1 as bool
-inline bool mx(qubit &q) {
+inline bool mx(qubit &q, std::string regName = "") {
   h(q);
-  return getExecutionManager()->measure({q.id()});
+  return getExecutionManager()->measure({q.id()}, regName);
 }
 
 // Measure an individual qubit in y basis, return 0,1 as bool
-inline bool my(qubit &q) {
+inline bool my(qubit &q, std::string regName = "") {
   s<adj>(q);
   h(q);
-  return getExecutionManager()->measure({q.id()});
+  return getExecutionManager()->measure({q.id()}, regName);
 }
 
 inline void reset(qubit &q) { getExecutionManager()->resetQubit(q.id()); }

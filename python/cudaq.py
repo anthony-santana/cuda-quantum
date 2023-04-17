@@ -52,6 +52,10 @@ z = z()
 s = s()
 t = t()
 
+rx = rx()
+ry = ry()
+rz = rz()
+r1 = r1()
 
 class kernel(object):
     def __init__(self, function, *args, **kwargs):

@@ -82,7 +82,8 @@ void bindSample(py::module &mod) {
                 .cast<py::dict>()["conditionalOnMeasure"]
                 .cast<bool>();
         return details::runSampling([&]() mutable { kernel(*args); }, platform,
-                                    kernelName, 1000)
+                                    kernelName, 1000, 0, nullptr,
+                                    hasConditionalOnMeasure)
             .value();
       },
       py::arg("kernel"), py::kw_only(), "");
