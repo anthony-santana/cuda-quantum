@@ -1,0 +1,66 @@
+/*************************************************************** -*- C++ -*- ***
+ * Copyright (c) 2022 - 2023 NVIDIA Corporation & Affiliates.                  *
+ * All rights reserved.                                                        *
+ *                                                                             *
+ * This source code and the accompanying materials are made available under    *
+ * the terms of the Apache License 2.0 which accompanies this distribution.    *
+ *******************************************************************************/
+
+#include "py_qubit_qis.h"
+#include "cudaq/qis/qubit_qis.h"
+#include <pybind11/stl.h>
+
+namespace cudaq {
+
+namespace details {
+
+template <typename QuantumOp>
+void bindQuantumOperation(py::module &mod) {
+  QuantumOp op;
+  py::class_<QuantumOp>(mod, op.name.c_str(), "")
+      .def(py::init<>())
+      .def_static("__call__",
+                  [](py::args &args) {
+                    std::vector<std::size_t> mapped;
+                    for (auto &arg : args) {
+                      mapped.emplace_back(arg.cast<qubit &>().id());
+                    }
+                    QuantumOp()(mapped);
+                  })
+      .def_static(
+          "ctrl",
+          [](py::args &qubits) {
+            std::vector<std::size_t> mapped;
+            std::vector<bool> isNegated;
+            for (auto &arg : qubits) {
+              mapped.emplace_back(arg.cast<qubit &>().id());
+              isNegated.emplace_back(arg.cast<qubit &>().is_negative());
+              if (isNegated.back()) arg.cast<qubit&>().negate();
+            }
+            QuantumOp op;
+            op.ctrl(mapped, isNegated);
+          },
+          "");
+}
+
+} // namespace details
+
+void bindQIS(py::module &mod) {
+
+  py::class_<qubit>(mod, "qubit", "").def("id", [](qubit& self) {return self.id(); }, "");
+  py::class_<qreg<dyn, 2>>(mod, "qvector", "")
+      .def(py::init<std::size_t>())
+      .def("__getitem__", &qreg<dyn, 2>::operator[],
+           py::return_value_policy::reference, "");
+
+  details::bindQuantumOperation<cudaq::types::h>(mod);
+  details::bindQuantumOperation<cudaq::types::x>(mod);
+  details::bindQuantumOperation<cudaq::types::y>(mod);
+  details::bindQuantumOperation<cudaq::types::z>(mod);
+  details::bindQuantumOperation<cudaq::types::t>(mod);
+  details::bindQuantumOperation<cudaq::types::s>(mod);
+
+  mod.def(
+      "mz", [](qubit &q) { return mz(q); }, "");
+}
+} // namespace cudaq

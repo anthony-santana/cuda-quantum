@@ -65,6 +65,28 @@ async_sample_result pySampleAsync(kernel_builder<> &builder,
 
 void bindSample(py::module &mod) {
 
+  mod.def(
+      "sample",
+      [&](py::object kernel, py::args args) {
+        if (!py::hasattr(kernel, "kernelFunction"))
+          throw std::runtime_error("Invalid cudaq.kernel type. Did you "
+                                   "decorate the kernel function?");
+
+        auto kernelName =
+            kernel.attr("kernelFunction").attr("__name__").cast<std::string>();
+        auto &platform = cudaq::get_platform();
+
+        // FIXME no something with this
+        [[maybe_unused]] auto hasConditionalOnMeasure =
+            kernel.attr("metadata")
+                .cast<py::dict>()["conditionalOnMeasure"]
+                .cast<bool>();
+        return details::runSampling([&]() mutable { kernel(*args); }, platform,
+                                    kernelName, 1000)
+            .value();
+      },
+      py::arg("kernel"), py::kw_only(), "");
+
   py::class_<async_sample_result>(
       mod, "AsyncSampleResult",
       "A data-type containing the results of a call to :func:`sample_async`. "

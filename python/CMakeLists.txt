@@ -29,6 +29,7 @@ endif()
 pybind11_add_module(_pycudaq 
                      _cudaq.cpp 
                      utils/LinkedLibraryHolder.cpp 
+                     runtime/cudaq/qis/py_qubit_qis.cpp
                      runtime/cudaq/builder/py_kernel_builder.cpp
                      runtime/cudaq/builder/py_QuakeValue.cpp
                      runtime/cudaq/algorithms/py_observe.cpp

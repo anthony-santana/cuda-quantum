@@ -17,6 +17,7 @@
 #include "common/ExecutionContext.h"
 #include "common/MeasureCounts.h"
 
+#include "cudaq/qis/qubit_qis.h"
 #include <any>
 
 namespace cudaq {
@@ -25,19 +26,12 @@ struct PyQreg {};
 
 void bindMakeKernel(py::module &mod) {
 
-  py::class_<PyQubit>(mod, "qubit",
-                      "The data-type representing a qubit argument to a "
-                      ":class:`Kernel` function.\n"
-                      "\n.. code-block:: python\n\n"
-                      "  # Example:\n"
-                      "  kernel, qubit = cudaq.make_kernel(cudaq.qubit)\n");
   py::class_<PyQreg>(mod, "qreg",
                      "The data-type representing a register of qubits as an "
                      "argument to a :class:`Kernel` function.\n"
                      "\n.. code-block:: python\n\n"
                      "  # Example:\n"
                      "  kernel, qreg = cudaq.make_kernel(cudaq.qreg)\n");
-
   mod.def(
       "make_kernel",
       []() {

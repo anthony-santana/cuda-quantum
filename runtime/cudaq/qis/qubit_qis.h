@@ -38,6 +38,58 @@ ConcreteQubitOp(h) ConcreteQubitOp(x) ConcreteQubitOp(y) ConcreteQubitOp(z)
 inline std::size_t qubitToId(qubit &q) { return q.id(); }
 inline bool qubitIsNegative(qubit &q) { return q.is_negative(); }
 
+template <typename mod = base>
+void oneQubitApplyRuntime(const std::string &gateName,
+                          std::vector<std::size_t> &qubitIds,
+                          std::vector<bool> qubitIsNegated = {}) {
+  // Get the number of input qubits
+  std::size_t nArgs = qubitIds.size();
+  // std::array<bool, nArgs> qubitIsNegated{qubitIsNegative(args)...};
+
+  // If there are more than one qubits and mod == base, then
+  // we just want to apply the gate to all qubits provided
+  if (nArgs > 1 && std::is_same_v<mod, base>) {
+    for (auto &targetId : qubitIds) {
+      std::vector<std::size_t> qs{targetId};
+      getExecutionManager()->apply(gateName, {}, {}, qs);
+    }
+    // Nothing left to do, return
+    return;
+  }
+
+  // If we are here, then mod must be ctrl / adj
+  // Extract the controls and the target
+  std::span<std::size_t> empty;
+  std::span<std::size_t> qubitIdsSpan = qubitIds;
+  std::span<std::size_t> controls = qubitIdsSpan.first(nArgs - 1);
+
+  // If we have controls, check if any of them
+  // are negative controls, and if so apply an x
+  if (!controls.empty())
+    for (std::size_t i = 0; i < controls.size(); i++)
+      if (qubitIsNegated[i]) {
+        std::vector<std::size_t> tmpTarget{controls[i]};
+        getExecutionManager()->apply("x", {}, empty, tmpTarget);
+      }
+
+  // Get the main target qubit
+  std::span targets = qubitIdsSpan.last(1);
+  // FIXME Throw an error if target is negated.
+
+  // Apply the gate
+  getExecutionManager()->apply(gateName, {}, controls, targets,
+                               std::is_same_v<mod, adj>);
+
+  // If we did apply any X ops for a negative control,
+  // we need to reverse it
+  if (!controls.empty())
+    for (std::size_t i = 0; i < controls.size(); i++)
+      if (qubitIsNegated[i]) {
+        std::vector<std::size_t> tmpTarget{controls[i]};
+        getExecutionManager()->apply("x", {}, empty, tmpTarget);
+      }
+}
+
 /// @brief This function will apply the specified QuantumOp. It will check the
 /// modifier template type and if it is base, it will apply the op to any qubits
 /// provided as input. If ctrl, it will take the first N-1 qubits as the
@@ -136,11 +188,6 @@ void oneQubitApplyControlledRange(QubitRange &ctrls, qubit &target) {
 }
 
 #define CUDAQ_QIS_ONE_TARGET_QUBIT_(NAME)                                      \
-  namespace types {                                                            \
-  struct NAME {                                                                \
-    inline static const std::string name{#NAME};                               \
-  };                                                                           \
-  }                                                                            \
   template <typename mod = base, typename... QubitArgs>                        \
   void NAME(QubitArgs &...args) {                                              \
     oneQubitApply<qubit_op::NAME##Op, mod>(args...);                           \
@@ -163,6 +210,18 @@ void oneQubitApplyControlledRange(QubitRange &ctrls, qubit &target) {
     for (auto &q : qr) {                                                       \
       NAME<mod>(q);                                                            \
     }                                                                          \
+  }                                                                            \
+  namespace types {                                                            \
+  struct NAME {                                                                \
+    inline static const std::string name{#NAME};                               \
+    void operator()(std::vector<std::size_t> &targets) {                       \
+      oneQubitApplyRuntime(name, targets);                                     \
+    }                                                                          \
+    void ctrl(std::vector<std::size_t> &controlsAndTarget,                     \
+              std::vector<bool> &isNegated) {                                  \
+      oneQubitApplyRuntime<cudaq::ctrl>(name, controlsAndTarget, isNegated);   \
+    }                                                                          \
+  };                                                                           \
   }
 
 // Instantiate the above 3 functions for the default logical gate set
@@ -399,8 +458,8 @@ inline int64_t to_integer(std::string bitString) {
 // `Args`, and returns `void`.
 template <typename Kernel, typename... Args>
 concept isCallableVoidKernel = requires(Kernel &&k, Args &&...args) {
-  { k(args...) } -> std::same_as<void>;
-};
+                                 { k(args...) } -> std::same_as<void>;
+                               };
 
 template <typename T, typename Signature>
 concept signature = std::is_convertible_v<T, std::function<Signature>>;
