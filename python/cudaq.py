@@ -18,6 +18,8 @@ class MidCircuitMeasurementAnalyzer(ast.NodeVisitor):
 
     def visit_Assign(self, node):
         target = node.targets[0]
+        if not 'func' in node.value.__dict__:
+            return
         creatorFunc = node.value.func
         if 'id' in creatorFunc.__dict__ and creatorFunc.id == 'mz':
             self.measureResultsVars.append(target.id)

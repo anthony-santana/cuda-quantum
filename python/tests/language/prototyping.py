@@ -1,5 +1,6 @@
 import cudaq
-from cudaq import h, x, ry, mz, spin
+from cudaq import h, x, t, swap, ry, r1, mz, spin
+import numpy as np 
 
 # Simple kernel sampling
 @cudaq.kernel
@@ -44,3 +45,42 @@ hamiltonian = 5.907 - 2.1433 * spin.x(0) * spin.x(1) - 2.1433 * spin.y(
 
 result = cudaq.observe(ansatz, hamiltonian, .59)
 print(result.expectation_z())
+
+# More complexity!
+
+@cudaq.kernel 
+def iqft(qubits):
+    N = qubits.size()
+    for i in range(N//2):
+        swap(qubits[i], qubits[N-i-1])
+    
+    for i in range(N-1):
+        h(qubits[i])
+        j = i + 1
+        for y in range(i, -1, -1):
+            r1.ctrl(-np.pi / 2**(j-y), qubits[j], qubits[y])
+    
+    h(qubits[N-1])
+
+@cudaq.kernel 
+def tGate(qubit):
+    t(qubit)
+
+@cudaq.kernel 
+def xGate(qubit):
+    x(qubit)
+
+@cudaq.kernel
+def qpe(nC, nQ, statePrep, oracle):
+    q = cudaq.qvector(nC+nQ)
+    countingQubits = q.front(nC)
+    stateRegister = q.back()
+    statePrep(stateRegister)
+    h(countingQubits)
+    for i in range(nC):
+        for j in range(2**i):
+            cudaq.control(oracle, [countingQubits[i]], stateRegister)
+    iqft(countingQubits)
+    mz(countingQubits)
+
+cudaq.sample(qpe, 3, 1, xGate, tGate).dump()

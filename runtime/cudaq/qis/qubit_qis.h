@@ -552,6 +552,16 @@ void control(QuantumKernel &&kernel,
   getExecutionManager()->endCtrlRegion(ctrls.size());
 }
 
+template <typename QuantumKernel, typename... Args>
+  requires isCallableVoidKernel<QuantumKernel, Args...>
+void control(QuantumKernel &&kernel,
+             std::vector<std::size_t> &ctrl_qubits,
+             Args &&...args) {
+  getExecutionManager()->startCtrlRegion(ctrl_qubits);
+  kernel(std::forward<Args>(args)...);
+  getExecutionManager()->endCtrlRegion(ctrl_qubits.size());
+}
+
 // Apply the adjoint of the given cudaq kernel
 template <typename QuantumKernel, typename... Args>
   requires isCallableVoidKernel<QuantumKernel, Args...>
