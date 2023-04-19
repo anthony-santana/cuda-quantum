@@ -60,6 +60,8 @@ rz = rz()
 r1 = r1()
 
 class kernel(object):
+    # import_string = "from cudaq import h,x,y,z,s,t,rx,ry,rz,r1,swap,mz,control,qubit,qspan,qvector\n"
+
     def __init__(self, function, *args, **kwargs):
         self.kernelFunction = function
         self.inputArgs = args 

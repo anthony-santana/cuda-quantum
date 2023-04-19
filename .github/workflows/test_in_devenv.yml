@@ -28,6 +28,7 @@ jobs:
           key: ${{ inputs.devdeps_cache }}
           fail-on-cache-miss: true
 
+this runs in the ci so it fails the CI then fail
       - name: Build CUDA Quantum
         id: cudaq_build
         run: |
@@ -42,6 +43,8 @@ jobs:
           tag_prefix=`echo $devdeps_tag | cut -d "_" -f 1`
           echo "tag_prefix=$tag_prefix" >> $GITHUB_OUTPUT
 
+this is where the tests are actually run, in their own environment, but 
+the failures aren't getting ported back up to the outer CI dev environment
       - name: Test CUDA Quantum
         uses: addnab/docker-run-action@v3
         with:
