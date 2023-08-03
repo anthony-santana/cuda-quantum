@@ -83,8 +83,8 @@ def IsUnknownVec : Constraint<CPred<
 //     !quake.ref<7>
 // %3 = quake.relax_size %new3 : (!quake.ref<7>) -> !quake.ref<?>
 def FuseConstantToSubveqPattern : Pat<
-      (quake_SubVeqOp:$subveq $v, $lo, $hi),
-      (createSizedSubVeqOp $subveq, $v, $lo, $hi),
+      (quake_SubVeqOp:$subveq $veq, $lo, $hi),
+      (createSizedSubVeqOp $subveq, $veq, $lo, $hi),
       [(UnknownSizePred $subveq), (ArgIsConstantPred $lo),
        (ArgIsConstantPred $hi)]>;
 

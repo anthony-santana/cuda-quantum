@@ -308,10 +308,7 @@ def quake_SubVeqOp : QuakeOp<"subveq", [Pure]> {
 
     Example:
     ```mlir
-      %0 = arith.constant 2 : i32
-      %1 = arith.constant 6 : i32
-      %qr = quake.subveq %qv, %0, %1 : (!quake.veq<?>, i32, i32) ->
-                                        !quake.veq<5>
+      %qr = quake.subveq %qv, 2, 6 : (!quake.veq<?>) -> !quake.veq<5>
     ```
   }];
 
@@ -322,11 +319,60 @@ def quake_SubVeqOp : QuakeOp<"subveq", [Pure]> {
   );
   let results = (outs VeqType:$qsub);
 
+  // Defining build methods that will accept `mlir::Value`'s for dynamic
+  // indices, or `std::size_t`'s for constant indices.
+  let builders = [
+    // Someone passes a vector with Value's for both the low and high index.
+    OpBuilder<(ins "mlir::Value":$veq, "mlir::Value":$lowIndex,
+                   "mlir::Value":$highIndex), [{
+      return build($_builder, $_state, $_builder.getType<RefType>(), veq,
+                   lowIndex, highIndex);
+    }]>,
+    // Someone passes a vector with dynamic indices.
+    // I don't full understand how this is different from the above case
+    // with mlir Values. Do I just not need this, along with the 
+    // kDynamicIndex I put on the class?
+    OpBuilder<(ins "mlir::Value":$veq), [{
+      return build($_builder, $_state, $_builder.getType<RefType>(), veq,
+                   SubVeqOp::kDynamicIndex, SubVeqOp::kDynamicIndex);
+    }]>,
+    // Someone passes a vector with concrete low and high indices.
+    // It's my understanding that this is the case where our indices
+    // will be constant and therefore, can be folded.
+    // Hence why we're adding them as attributes instead of ops (?).
+    OpBuilder<(ins "mlir::Value":$veq, "std::size_t":$rawLowIndex,
+                    "std::size_t":$rawHighIndex), [{
+      auto i64Ty = $_builder.getI64Type();
+      return build($_builder, $_state, $_builder.getType<RefType>(), veq,
+                   mlir::Value{}, mlir::IntegerAttr::get(i64Ty, rawLowIndex),
+                    mlir::IntegerAttr::get(i64Ty, rawHighIndex));
+    }]>
+  ];  
+
+  // let assemblyFormat = [{
+  //   operands attr-dict `:` functional-type(operands, results)
+  // }];
+
+  // Call the custom directive to parse the incoming indices.
+  // It's my understanding that these should call overloads 
+  // for `parseRawIndex` and `printRawIndex`. That parse function
+  // will handle the constant folding (?).
   let assemblyFormat = [{
-    operands attr-dict `:` functional-type(operands, results)
+    $veq `[` custom<RawIndex>($low, $high) `]` `:`
+      functional-type(operands, results) attr-dict
   }];
 
   let hasCanonicalizer = 1;
+  // TODO: Need to write a verifier.
+  // let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    static constexpr std::size_t kDynamicIndex =
+      std::numeric_limits<std::size_t>::max();
+
+    bool hasConstantIndex() { return !getIndex(); }
+    std::size_t getConstantIndex() { return getRawIndex(); }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
