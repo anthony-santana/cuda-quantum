@@ -843,6 +843,23 @@ def ExpPauliOp : QuakeOp<"exp_pauli"> {
   }];
 }
 
+def InitializeStateOp : QuakeOp<"init_state"> {
+  let summary = "Initialize the quantum state to a specific complex vector.";
+  let description = [{
+    Given a cc.stdvec<complex<T>> of size 2**N, or (2**N x 2**N) for a density matrix,
+    where N is the number of qubits in the targets operand, initialize the state of
+    those target qubits to the provided state representation.
+  }];
+
+  // TODO: Do I need enforcement that the cc_StdVectorType is complex?
+  let arguments = (ins VeqType:$targets, cc_StdVectorType:$vector);
+  let results = (outs );
+
+  let assemblyFormat = [{
+    `(` $targets `,` $vector `)` `:` functional-type(operands, results) attr-dict
+  }];
+}
+
 def HOp : OneTargetOp<"h", [Hermitian]> {
   let summary = "Hadamard operation";
   let description = [{
