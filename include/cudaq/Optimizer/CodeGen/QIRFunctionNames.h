@@ -59,6 +59,10 @@ constexpr static const char QIRArrayCreateArray[] =
 constexpr static const char QIRRecordOutput[] =
     "__quantum__rt__result_record_output";
 
+/// Control the initial state representation of the target backend.
+constexpr static const char QIRInitializeState[] =
+    "__quantum__qis__initialize_state";
+
 inline mlir::Type getQuantumTypeByName(mlir::StringRef type,
                                        mlir::MLIRContext *context) {
   return mlir::LLVM::LLVMStructType::getOpaque(type, context);
