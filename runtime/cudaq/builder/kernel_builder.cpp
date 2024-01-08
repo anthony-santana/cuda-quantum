@@ -477,6 +477,17 @@ QuakeValue qalloc(ImplicitLocOpBuilder &builder, QuakeValue &size) {
   return QuakeValue(builder, qubits);
 }
 
+void _init_state(ImplicitLocOpBuilder &builder,
+                const std::vector<std::complex<double>> &initialState) {
+  auto context = builder.getContext();
+  // have to convert the std::vector to a cc::vector type
+  auto doubleTy = builder.getFloatType(64);
+  auto complexTy = builder.getComplexType(doubleTy);
+  auto stdvecTy = cudaq::cc::StdvecType::get(complexTy);
+
+  // builder.create<quake::InitializeStateOp>()
+}
+
 QuakeValue constantVal(ImplicitLocOpBuilder &builder, double val) {
   llvm::APFloat d(val);
   Value constant =

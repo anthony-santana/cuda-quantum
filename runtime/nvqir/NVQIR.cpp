@@ -384,19 +384,20 @@ void __quantum__qis__exp_pauli(double theta, Array *qubits, char *pauliWord) {
   return;
 }
 
-struct MyComplexT {
-  double real;
-  double imag;
-};
+// struct MyComplexT {
+//   double real;
+//   double imag;
+// };
 
-struct SupportedCVectorComplex {
-  MyComplexT *data;
-  std::size_t size;
-};
+// struct SupportedCVectorComplex {
+//   MyComplexT *data;
+//   std::size_t size;
+// };
 
 void __quantum__qis__initialize_state(Array *targets,
                                       SupportedCVectorComplex data) {
   auto targetIds = arrayToVectorSizeT(targets);
+  // TODO: Handle 2^N*2^N flattened for density matrix backends.
   auto numElements = (1UL << targetIds.size());
   if (data.size != numElements)
     throw std::runtime_error(
@@ -407,7 +408,7 @@ void __quantum__qis__initialize_state(Array *targets,
   for (std::size_t i = 0; i < numElements; i++)
     vector[i] = {data.data[i].real, data.data[i].imag};
 
-  // nvqir::getCircuitSimulatorInternal()->setStateData(targetIds, vector);
+  nvqir::getCircuitSimulatorInternal()->setStateData(targetIds, vector);
 }
 
 void __quantum__rt__result_record_output(Result *, int8_t *) {}

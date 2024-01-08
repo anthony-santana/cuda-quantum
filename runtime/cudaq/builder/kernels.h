@@ -68,6 +68,14 @@ void from_state(Kernel &&kernel, QuakeValue &qubits,
         "[from_state] cannot infer size of input quantum register, please "
         "specify the number of qubits via the from_state() final argument.");
 
+  // TODO: Runtime check of platform to see if we can circumvent
+  // the circuit synthesis and instead call the kernel builder
+  // _init_state function
+
+  // TODO: Throw error if the platform runtime check detects
+  // a non-state vector backend that the user requests circuit
+  // synthesis for (density matrix, possibly cutensornet??)
+
   auto mutableQubits = cudaq::range(numQubits);
   std::reverse(mutableQubits.begin(), mutableQubits.end());
   bool omegaNonZero = false;
