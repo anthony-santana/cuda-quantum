@@ -25,29 +25,24 @@ std::vector<int> random_bitstring(int qubit_count) {
   return vector_of_bits;
 }
 
-__qpu__ void oracle(cudaq::qview<> qvector, cudaq::qubit &auxillary_qubit,
+__qpu__ void oracle(cudaq::qview<> qvector, cudaq::qview<> auxillary_qubit,
                     std::vector<int> &hidden_bitstring) {
   for (auto i = 0; i < hidden_bitstring.size(); i++) {
     if (hidden_bitstring[i] == 1)
       // Apply a `cx` gate with the current qubit as
       // the control and the auxillary qubit as the target.
-      x<cudaq::ctrl>(qvector[i], auxillary_qubit);
+      x<cudaq::ctrl>(qvector[i], auxillary_qubit[0]);
   }
 }
 
-__qpu__ void bernstein_vazirani(std::vector<int> &hidden_bitstring) {
+__qpu__ void bernstein_vazirani(std::vector<double> &initial_state,
+                                std::vector<double> &auxillary_state,
+                                std::vector<int> &hidden_bitstring) {
   // Allocate the specified number of qubits - this
   // corresponds to the length of the hidden bitstring.
-  cudaq::qvector qvector(hidden_bitstring.size());
-  // Allocate an extra auxillary qubit.
-  cudaq::qubit auxillary_qubit;
-
-  // Prepare the auxillary qubit.
-  h(auxillary_qubit);
-  z(auxillary_qubit);
-
-  // Place the rest of the qubits in a superposition state.
-  h(qvector);
+  // and an extra auxillary qubit.
+  cudaq::qvector qvector(initial_state);
+  cudaq::qvector auxillary_qubit(auxillary_state);
 
   // Query the oracle.
   oracle(qvector, auxillary_qubit, hidden_bitstring);
@@ -61,7 +56,6 @@ __qpu__ void bernstein_vazirani(std::vector<int> &hidden_bitstring) {
 }
 
 int main() {
-
   auto iterations = 500;
   auto qubit_counts = {
       3,  4,  5,  6,  7,  8,  9,  10, 11,
@@ -69,13 +63,29 @@ int main() {
 
   for (auto qubit_count : qubit_counts) {
     std::vector<double> times;
+
+    // For now, including this calculation in the timing loop itself:
+
+    // // Initial state to allocate the system in (Hadamard state).
+    // auto value = 1. / sqrt(pow(2, qubit_count));
+    // std::vector<double> initialState(pow(2, qubit_count), value);
+    // // Initial state for the auxillary qubit (Hadamard + Z).
+    // std::vector<double> auxillaryState = {1. / sqrt(2), -1. / sqrt(2)};
+
     for (auto iteration = 0; iteration < iterations; iteration++) {
       auto start = std::chrono::high_resolution_clock::now();
+
+      // Initial state to allocate the system in (Hadamard state).
+      auto value = 1. / sqrt(pow(2, qubit_count));
+      std::vector<double> initialState(pow(2, qubit_count), value);
+      // Initial state for the auxillary qubit (Hadamard + Z).
+      std::vector<double> auxillaryState = {1. / sqrt(2), -1. / sqrt(2)};
 
       // Generate a bitstring to encode and recover with our algorithm.
       auto hidden_bitstring = random_bitstring(qubit_count);
 
-      auto result = cudaq::sample(bernstein_vazirani, hidden_bitstring);
+      auto result = cudaq::sample(bernstein_vazirani, initialState,
+                                  auxillaryState, hidden_bitstring);
 
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
