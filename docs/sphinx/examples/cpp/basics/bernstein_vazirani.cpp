@@ -70,10 +70,10 @@ int main() {
   for (auto qubit_count : qubit_counts) {
     std::vector<double> times;
     for (auto iteration = 0; iteration < iterations; iteration++) {
-      auto start = std::chrono::high_resolution_clock::now();
-
       // Generate a bitstring to encode and recover with our algorithm.
       auto hidden_bitstring = random_bitstring(qubit_count);
+
+      auto start = std::chrono::high_resolution_clock::now();
 
       auto result = cudaq::sample(bernstein_vazirani, hidden_bitstring);
 

@@ -73,6 +73,9 @@ int main() {
     // std::vector<double> auxillaryState = {1. / sqrt(2), -1. / sqrt(2)};
 
     for (auto iteration = 0; iteration < iterations; iteration++) {
+      // Generate a bitstring to encode and recover with our algorithm.
+      auto hidden_bitstring = random_bitstring(qubit_count);
+
       auto start = std::chrono::high_resolution_clock::now();
 
       // Initial state to allocate the system in (Hadamard state).
@@ -80,10 +83,6 @@ int main() {
       std::vector<double> initialState(pow(2, qubit_count), value);
       // Initial state for the auxillary qubit (Hadamard + Z).
       std::vector<double> auxillaryState = {1. / sqrt(2), -1. / sqrt(2)};
-
-      // Generate a bitstring to encode and recover with our algorithm.
-      auto hidden_bitstring = random_bitstring(qubit_count);
-
       auto result = cudaq::sample(bernstein_vazirani, initialState,
                                   auxillaryState, hidden_bitstring);
 
