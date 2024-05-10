@@ -36,8 +36,7 @@ time_variable.max_time = 5.  # total time, T. arbitrary value in s.
 time_variable.resolution = 0.25  # time duration for each chunk of time evolution. arbitrary value in s.
 
 # `cudaq.ControlSignal`
-control_signal = cudaq.ControlSignal()
-control_signal.time = time_variable
+control_signal = cudaq.ControlSignal(time=time_variable)
 # Could also use `control_signal.set_sample_function` to provide a function instead
 # of an array of sample values.
 control_signal.set_sample_values(np.random.rand(len(time_variable.time_series())))

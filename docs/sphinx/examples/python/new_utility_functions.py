@@ -48,7 +48,7 @@ class Time:
         self.resolution = 0.25
         self.sample_times = None
 
-    def time_series(self):
+    def time_series(self) -> np.ndarray:
         """ 
         Return the discrete time step values, t, over a given
         duration: [start_time, max_time].
@@ -58,8 +58,13 @@ class Time:
                                       step=self.resolution)
         return self.sample_times
 
-    def to_index(self, time_value):
-        """ A horribly inneficient function implementation. """
+    def to_index(self, time_value: float) -> int:
+        """ 
+        A horribly inneficient function implementation. 
+        Finds the index in the `sample_times` of the value equal
+        to the user-provided `time_value`.
+        Raises an index error if that time value wasn't found.
+        """
         for index, time in np.ndenumerate(self.sample_times):
             if (time_value == time):
                 return index
@@ -69,14 +74,19 @@ class Time:
     # When a value is given, this will become the actual value of the `Time`.
     # This is used to make it inherently compatible with the arithmetic operators
     # of the `cudaq.SpinOperator` class.
-    def __call__(self, value=1.0):
+    def __call__(self, value=1.0) -> float:
         return value
 
 
 cudaq.Time = Time
 
 
-class ControlSignal:
+class HardwareControl:
+    pass
+
+cudaq.HardwareControl = HardwareControl
+
+class ControlSignal(cudaq.HardwareControl):
     """
     The `cudaq.ControlSignal` type would be a new function interface that you could
     imagine being extended to existing as a function in the MLIR. 
@@ -90,10 +100,10 @@ class ControlSignal:
     sense for representing a microwave waveform, but not for tuning parameters of a laser.
     """
 
-    def __init__(self):
+    def __init__(self, time: cudaq.Time):
         # A user can either provide all of the samples upfront, or provide
         # a blackbox function that returns the sample value at a time-step.
-        self.time: cudaq.Time = None
+        self.time: cudaq.Time = time
 
         # We will have one or the other:
         self.full_sample_mode = False
@@ -137,12 +147,27 @@ class ControlSignal:
 
 cudaq.ControlSignal = ControlSignal
 
+
+class ControlPhase(HardwareControl): 
+    """ """
+
+    def __init__(self, time: cudaq.Time):
+        self.time: cudaq.Time = time
+
+    def set_phase_shift_times(self):
+        pass
+
+    def set_phase_shift_values(self):
+        pass
+    
+
 ################################################################################
 
 
 def synthesize_unitary(hamiltonian, time_variable):
     """
-    This would be a great function to offload to a GPU.
+    This would be a great function to offload to a GPU, as it
+    involves repeated exponentiation of a matrix.
     """
     # 1. returns a list of the registered unitary ops
     # 2. we then loop through each of those in our kernel and
