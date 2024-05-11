@@ -168,21 +168,17 @@ def synthesize_unitary(hamiltonian, time_variable):
     """
     This would be a great function to offload to a GPU, as it
     involves repeated exponentiation of a matrix.
-    """
-    # 1. returns a list of the registered unitary ops
-    # 2. we then loop through each of those in our kernel and
-    #    apply them to a qubit starting from the |0> state
 
-    # Once I have Pradnya's branch, I can call the API register
-    # function here and build the list up with those.
-    unitary_operations = []
-    for time_value in time_variable.time_series():
-        unitary_operations.append(
-            sp.linalg.expm(-1j * time_variable.resolution *
-                           hamiltonian(time_value)))
-        
-    # I may need to create custom names for these operations here
-    return unitary_operations
+    You could also parallelize these calculations very nicely
+    as each time slice of the unitary is indepdent of the others.
+    """
+
+    initial_name = "custom_operation_"
+    for index, time_value in enumerate(time_variable.time_series()):
+        operation_name = initial_name + str(index)
+        unitary_matrix = sp.linalg.expm(-1j * time_variable.resolution * hamiltonian(time_value))
+        cudaq.register_operation(unitary_matrix, operation_name=operation_name)
+    return cudaq.globalRegisteredUnitaries.copy()
 
 cudaq.synthesize_unitary = synthesize_unitary
 

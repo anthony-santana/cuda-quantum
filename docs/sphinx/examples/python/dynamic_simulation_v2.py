@@ -53,16 +53,17 @@ Hamiltonian = lambda t: np.asarray((H_constant + (control_signal(t) * np.cos(
 ################################################################################
 
 unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
-print(unitary_operations)
 
-# The kernel will either need to be able to accept the list of unitaries
-# as an argument, or access them globally
-@cudaq.kernel
-def kernel():
-    q = cudaq.qubit()
-    # Loop through the unitary_operations (in proper time order)
-    # and apply them to `q`
+# Allocate a qubit to a kernel and apply the registered unitary operations
+# (taken from the global dict), to the kernel.
+kernel = cudaq.make_kernel()
+qubit = kernel.qalloc()
 
-# final_state = cudaq.get_state(kernel)
+for name in unitary_operations.keys():
+  evaluation_string = "kernel." + name + "(qubit)"
+  eval(evaluation_string)
+
+final_state = cudaq.get_state(kernel)
+print(final_state)
 
 ################################################################################
