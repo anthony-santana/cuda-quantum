@@ -5,13 +5,12 @@ import numpy as np
 
 from new_utility_functions import *
 
-
 ################################### TODO #######################################
 
 # 1. Write out an optimization loop for optimizing these pulses -- this will confront
 #    any issues with creating new unitary's each step.
 # 2. Multiple controls on a single qubit
-# 3. 2-qubit Hamiltonians/Unitaries
+# 3. 2-qubit Hamiltonians/Unitaries --> produce a GHZ-state on one of these
 # 4. Grab a realistic small Hamiltonian from a provider and test it out.
 # 5. Think about how to make things like the time variable amenable to them
 #    being an optimized parameter as well. Total time, number of time chunks, etc.
@@ -40,7 +39,8 @@ time_variable.resolution = 0.25  # time duration for each chunk of time evolutio
 control_signal = cudaq.ControlSignal(time=time_variable)
 # Could also use `control_signal.set_sample_function` to provide a function instead
 # of an array of sample values.
-control_signal.set_sample_values(np.random.rand(len(time_variable.time_series())))
+control_signal.set_sample_values(
+    np.random.rand(len(time_variable.time_series())))
 
 # `H_constant = [[0,0], [0, omega_0]]`
 H_constant = (omega_0 / 2) * (cudaq.spin.i(0) - cudaq.spin.z(0))
@@ -53,16 +53,20 @@ Hamiltonian = lambda t: np.asarray((H_constant + (control_signal(t) * np.cos(
 
 ################################################################################
 
+# We get the synthesized unitarys back as a dict with the keys
+# being the registered unitary name and value being their matrix.
 unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
 
-# Allocate a qubit to a kernel and apply the registered unitary operations
-# (taken from the global dict), to the kernel.
+# Allocate a qubit to a kernel that we will apply
+# the time evolution operators to.
 kernel = cudaq.make_kernel()
 qubit = kernel.qalloc()
 
+# Loop through and apply the registered unitary operations
+# to the kernel.
 for unitary_operation in unitary_operations.keys():
-  evaluation_string = "kernel." + unitary_operation + "(qubit)"
-  eval(evaluation_string)
+    evaluation_string = "kernel." + unitary_operation + "(qubit)"
+    eval(evaluation_string)
 
 final_state = cudaq.get_state(kernel)
 print(final_state)

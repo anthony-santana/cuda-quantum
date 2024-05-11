@@ -1,9 +1,11 @@
 import cudaq
 from cudaq import spin
 
+import time
 import random
 import numpy as np
 import scipy as sp
+
 
 ################################################################################
 ############################## New cudaq data-types ############################
@@ -84,7 +86,9 @@ cudaq.Time = Time
 class HardwareControl:
     pass
 
+
 cudaq.HardwareControl = HardwareControl
+
 
 class ControlSignal(cudaq.HardwareControl):
     """
@@ -128,9 +132,11 @@ class ControlSignal(cudaq.HardwareControl):
         I know the nested returns in this are atrocious (sorry Eric).
         """
         if not (self.full_sample_mode or self.sample_function_mode):
-            print("An array of sample values or sample function must be provided.")
+            print(
+                "An array of sample values or sample function must be provided."
+            )
             raise ValueError
-        
+
         if time_value is not None:
             if self.full_sample_mode:
                 # have to convert the time value to an index in this case
@@ -148,7 +154,7 @@ class ControlSignal(cudaq.HardwareControl):
 cudaq.ControlSignal = ControlSignal
 
 
-class ControlPhase(HardwareControl): 
+class ControlPhase(HardwareControl):
     """ """
 
     def __init__(self, time: cudaq.Time):
@@ -159,7 +165,7 @@ class ControlPhase(HardwareControl):
 
     def set_phase_shift_values(self):
         pass
-    
+
 
 ################################################################################
 
@@ -172,21 +178,24 @@ def synthesize_unitary(hamiltonian, time_variable):
     You could also parallelize these calculations very nicely
     as each time slice of the unitary is indepdent of the others.
     """
-
     initial_name = "custom_operation_"
-    for index, time_value in enumerate(time_variable.time_series()):
+    index = 0
+    # The reverse is necessary for time ordering.
+    for time_value in reversed(time_variable.time_series()):
         operation_name = initial_name + str(index)
-        unitary_matrix = sp.linalg.expm(-1j * time_variable.resolution * hamiltonian(time_value))
+        unitary_matrix = sp.linalg.expm(-1j * time_variable.resolution *
+                                        hamiltonian(time_value))
         cudaq.register_operation(unitary_matrix, operation_name=operation_name)
+        index += 1
     return cudaq.globalRegisteredUnitaries.copy()
 
+
 cudaq.synthesize_unitary = synthesize_unitary
-
-
 
 ################################################################################
 
 # Used for testing the alternative feature of passing a function for the envelope
+
 
 def custom_envelope_function(time: float):
     """
