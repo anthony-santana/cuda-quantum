@@ -8,12 +8,13 @@ from new_utility_functions import *
 
 ################################### TODO #######################################
 
-# 1. Figure out how to tie the system Hamiltonian back into kernel land.
-# 2. Write out an optimization loop for optimizing these pulses -- this will confront
+# 1. Write out an optimization loop for optimizing these pulses -- this will confront
 #    any issues with creating new unitary's each step.
-# 3. Multiple controls on a single qubit
-# 4. 2-qubit Hamiltonians/Unitaries
-# 5. Grab a realistic small Hamiltonian from a provider and test it out.
+# 2. Multiple controls on a single qubit
+# 3. 2-qubit Hamiltonians/Unitaries
+# 4. Grab a realistic small Hamiltonian from a provider and test it out.
+# 5. Think about how to make things like the time variable amenable to them
+#    being an optimized parameter as well. Total time, number of time chunks, etc.
 
 ########################### Hamiltonian Definition #############################
 
@@ -59,8 +60,8 @@ unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
 kernel = cudaq.make_kernel()
 qubit = kernel.qalloc()
 
-for name in unitary_operations.keys():
-  evaluation_string = "kernel." + name + "(qubit)"
+for unitary_operation in unitary_operations.keys():
+  evaluation_string = "kernel." + unitary_operation + "(qubit)"
   eval(evaluation_string)
 
 final_state = cudaq.get_state(kernel)
