@@ -81,7 +81,7 @@ def optimization_function(x: np.ndarray, *args):
     # Calculate the fidelity and return it as a cost (1 - fidelity)
     # so that our optimizer can minimize the function.
     cost = 1. - calculate_state_fidelity(want_state, got_state)
-    # print(f"cost = {cost}")
+    print(f"cost = {cost}")
 
     return cost
 
@@ -117,21 +117,21 @@ def run_optimization(unitary_gate: np.ndarray):
         accept=-1e4,
         no_local_search=True,
         #  seed=np.random.default_rng(4),
-        maxiter=50)
+        maxiter=100)
     return optimized_result
 
 
 # Global variable to store states in so I can double check them later.
 got_states = []
 
-# Optimize for an X-gate.
-x_gate = np.array([[0, 1], [1, 0]])
-x_result = run_optimization(x_gate)
-x_waveform = x_result.x
-x_state = got_states[-1]
-print("x_state = ", x_state)
-print("abs(x_state) = ", np.abs(x_state))
-print("fidelity = ", 1.0 - x_result.fun, "\n")
+# # Optimize for an X-gate.
+# x_gate = np.array([[0, 1], [1, 0]])
+# x_result = run_optimization(x_gate)
+# x_waveform = x_result.x
+# x_state = got_states[-1]
+# print("x_state = ", x_state)
+# print("abs(x_state) = ", np.abs(x_state))
+# print("fidelity = ", 1.0 - x_result.fun, "\n")
 
 # Optimize for a Hadamard-gate.
 hadamard_gate = (1 / np.sqrt(2)) * np.array([[1, 1], [1, -1]])
@@ -144,6 +144,7 @@ print("fidelity = ", 1.0 - h_result.fun, "\n")
 
 # Optimize for a randomly generated Unitary matrix.
 random_gate = stats.unitary_group.rvs(2)
+print("random_gate = ", random_gate)
 random_result = run_optimization(random_gate)
 random_waveform = random_result.x
 random_state = got_states[-1]
@@ -151,19 +152,19 @@ print("random_state = ", random_state)
 print("abs(random_state) = ", np.abs(random_state))
 print("fidelity = ", 1.0 - random_result.fun, "\n")
 
-# ################################################################################################################
+#################################################################################################################
 
-# Make pretty pictures of the waveforms
-fig, axs = plt.subplots(3)
-axs[0].set_title(f"Optimized X Waveform\n fidelity={1.0 - x_result.fun}")
-axs[0].step(time_variable.time_series(), x_waveform)
-axs[1].set_title(f"Optimized Hadamard Waveform\n fidelity={1.0 - h_result.fun}")
-axs[1].step(time_variable.time_series(), hadamard_waveform)
-axs[1].set_ylabel("Waveform Amplitude")
-axs[2].set_title(
-    f"Optimized Random Unitary Waveform\n fidelity={1.0 - random_result.fun}")
-axs[2].step(time_variable.time_series(), random_waveform)
-axs[2].set_xlabel("Time\n(N_time_chunks * dt = T)")
-fig.tight_layout(pad=1.0)
+# # Make pretty pictures of the waveforms
+# fig, axs = plt.subplots(3)
+# axs[0].set_title(f"Optimized X Waveform\n fidelity={1.0 - x_result.fun}")
+# axs[0].step(time_variable.time_series(), x_waveform)
+# axs[1].set_title(f"Optimized Hadamard Waveform\n fidelity={1.0 - h_result.fun}")
+# axs[1].step(time_variable.time_series(), hadamard_waveform)
+# axs[1].set_ylabel("Waveform Amplitude")
+# axs[2].set_title(
+#     f"Optimized Random Unitary Waveform\n fidelity={1.0 - random_result.fun}")
+# axs[2].step(time_variable.time_series(), random_waveform)
+# axs[2].set_xlabel("Time\n(N_time_chunks * dt = T)")
+# fig.tight_layout(pad=1.0)
 
-plt.savefig("out.png", bbox_inches="tight", pad_inches=0.5)
+# plt.savefig("out.png", bbox_inches="tight", pad_inches=0.5)

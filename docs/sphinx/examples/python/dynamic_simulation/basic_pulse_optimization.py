@@ -9,7 +9,6 @@ from scipy import stats
 
 from new_utility_functions import *
 
-
 ########################### Hamiltonian Definition #############################
 
 # A static term containing information about our ground
@@ -18,8 +17,8 @@ omega_0 = 1.0  # arbitrary value in hz.
 
 # `cudaq.Time`
 time_variable = cudaq.Time()
-time_variable.max_time = 5.  # total time, T. arbitrary value in s.
-time_variable.resolution = 0.25  # time duration for each chunk of time evolution. arbitrary value in s.
+time_variable.max_time = 5.  # total time, T. arbitrary value in (some)seconds.
+time_variable.resolution = 0.25  # time duration for each chunk of time evolution. arbitrary value in (some)s.
 # The number of time chunks that we will optimize amplitudes for.
 chunks = int(time_variable.max_time / time_variable.resolution)
 
@@ -37,6 +36,7 @@ Hamiltonian = lambda t: np.asarray((H_constant + (control_signal(t) * np.cos(
 
 ##################################################################################
 
+
 def calculate_state_fidelity(want_state, got_state):
     """
     Returns the overlap between the desired state and the
@@ -48,6 +48,7 @@ def calculate_state_fidelity(want_state, got_state):
     fidelity = np.abs(np.dot(np.conj(want_state).T, got_state))**2
     return fidelity
 
+
 def optimization_function(parameters: np.ndarray, want_state):
     # In this case, we'll just let each individual parameter
     # represent the amplitude at a time chunk. So we will
@@ -57,7 +58,10 @@ def optimization_function(parameters: np.ndarray, want_state):
 
     # Synthesize the unitary operations for this Hamiltonian with
     # the provided control amplitudes.
+    start = time.time()
     unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
+    stop = time.time()
+    # print(f"unitary synthesis took {stop-start} seconds")
 
     # Allocate a qubit to a kernel and apply the registered unitary operations
     # (taken from the global dict), to the kernel.
@@ -65,21 +69,28 @@ def optimization_function(parameters: np.ndarray, want_state):
     qubit = kernel.qalloc()
 
     for unitary_operation in unitary_operations.keys():
-      evaluation_string = "kernel." + unitary_operation + "(qubit)"
-      eval(evaluation_string)
+        evaluation_string = "kernel." + unitary_operation + "(qubit)"
+        eval(evaluation_string)
 
+    start = time.time()
     got_state = np.asarray(cudaq.get_state(kernel))
+    stop = time.time()
+    got_states.append(got_state)
+    # print(f"kernel execution took {stop-start} seconds")
+
     # Calculate the fidelity and return it as a cost (1 - fidelity)
     # so that our optimizer can minimize the function.
     cost = 1. - calculate_state_fidelity(want_state, got_state)
     print(cost)
     return cost
 
+
 def calculate_want_state(want_gate: np.ndarray):
-  # Start in |0> state.
-  initial_state = np.array([1.,0.])
-  # want_state = gate * |0>
-  return np.dot(want_gate, initial_state)
+    # Start in |0> state.
+    initial_state = np.array([1., 0.])
+    # want_state = gate * |0>
+    return np.dot(want_gate, initial_state)
+
 
 def run_optimization(unitary_gate: np.ndarray):
     """
@@ -101,6 +112,49 @@ def run_optimization(unitary_gate: np.ndarray):
     return optimized_result
 
 
-# Optimize for an X-gate.
-x_gate = np.array([[0, 1], [1, 0]])
-run_optimization(x_gate)
+# Global variable to store states in so I can double check them later.
+got_states = []
+
+# # Optimize for an X-gate.
+# x_gate = np.array([[0, 1], [1, 0]])
+# x_result = run_optimization(x_gate)
+# x_waveform = x_result.x
+# x_state = got_states[-1]
+# print("x_state = ", x_state)
+# print("abs(x_state) = ", np.abs(x_state))
+# print("fidelity = ", 1.0 - x_result.fun, "\n")
+
+# Optimize for a Hadamard-gate.
+hadamard_gate = (1 / np.sqrt(2)) * np.array([[1, 1], [1, -1]])
+h_result = run_optimization(hadamard_gate)
+hadamard_waveform = h_result.x
+h_state = got_states[-1]
+print("h_state = ", h_state)
+print("abs(h_state) = ", np.abs(h_state))
+print("fidelity = ", 1.0 - h_result.fun, "\n")
+
+# # Optimize for a randomly generated Unitary matrix.
+# random_gate = stats.unitary_group.rvs(2)
+# random_result = run_optimization(random_gate)
+# random_waveform = random_result.x
+# random_state = got_states[-1]
+# print("random_state = ", random_state)
+# print("abs(random_state) = ", np.abs(random_state))
+# print("fidelity = ", 1.0 - random_result.fun, "\n")
+
+#################################################################################################################
+
+# # Make pretty pictures of the waveforms
+# fig, axs = plt.subplots(3)
+# axs[0].set_title(f"Optimized X Waveform\n fidelity={1.0 - x_result.fun}")
+# axs[0].step(time_variable.time_series(), x_waveform)
+# axs[1].set_title(f"Optimized Hadamard Waveform\n fidelity={1.0 - h_result.fun}")
+# axs[1].step(time_variable.time_series(), hadamard_waveform)
+# axs[1].set_ylabel("Waveform Amplitude")
+# axs[2].set_title(
+#     f"Optimized Random Unitary Waveform\n fidelity={1.0 - random_result.fun}")
+# axs[2].step(time_variable.time_series(), random_waveform)
+# axs[2].set_xlabel("Time\n(N_time_chunks * dt = T)")
+# fig.tight_layout(pad=1.0)
+
+# plt.savefig("out.png", bbox_inches="tight", pad_inches=0.5)

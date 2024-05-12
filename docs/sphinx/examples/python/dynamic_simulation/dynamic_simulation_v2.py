@@ -6,14 +6,14 @@ import numpy as np
 from new_utility_functions import *
 
 ################################### TODO #######################################
-
-# 1. Write out an optimization loop for optimizing these pulses -- this will confront
-#    any issues with creating new unitary's each step.
-# 2. Multiple controls on a single qubit
-# 3. 2-qubit Hamiltonians/Unitaries --> produce a GHZ-state on one of these
-# 4. Grab a realistic small Hamiltonian from a provider and test it out.
-# 5. Think about how to make things like the time variable amenable to them
+# 1. 2-qubit Hamiltonians/Unitaries --> produce a GHZ-state on one of these
+# 2. Grab a realistic small Hamiltonian from a provider and test it out.
+# 3. Multiple control signals on a single qubit
+# 4. Think about how to make things like the time variable amenable to them
 #    being an optimized parameter as well. Total time, number of time chunks, etc.
+# 5. Try out more exotic function envelopes.
+
+# What do you pass to QuEra when running a program and what do they return?
 
 ########################### Hamiltonian Definition #############################
 
@@ -64,11 +64,12 @@ qubit = kernel.qalloc()
 
 # Loop through and apply the registered unitary operations
 # to the kernel.
-for unitary_operation in unitary_operations.keys():
+for unitary_operation in list(unitary_operations.keys()):
+    print(unitary_operation)
     evaluation_string = "kernel." + unitary_operation + "(qubit)"
     eval(evaluation_string)
 
 final_state = cudaq.get_state(kernel)
-print(final_state)
+print("final state = ", final_state)
 
 ################################################################################

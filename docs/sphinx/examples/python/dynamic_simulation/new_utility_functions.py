@@ -6,6 +6,12 @@ import random
 import numpy as np
 import scipy as sp
 
+# import mpi4py.MPI
+
+# TODO:
+# 1. Speed up the calculations themselves with CUPY
+# 2. Speed up the unitary synthesis with MPI
+
 
 ################################################################################
 ############################## New cudaq data-types ############################
@@ -30,7 +36,8 @@ cudaq.Variable = Variable
 class Time:
     """
 
-    Alternative name ideas: `Clock`, `GlobalClock`
+    Alternative name ideas: `Clock`, `GlobalClock` . Those might be useful
+    for some type of parent class for the time.
 
     A type that will be used to serve as variable for the time in
     parameterized Spin Operator expressions.
@@ -49,6 +56,7 @@ class Time:
         self.max_time = 1.0
         self.resolution = 0.25
         self.sample_times = None
+        self.sample_indices = None
 
     def time_series(self) -> np.ndarray:
         """ 
@@ -58,11 +66,14 @@ class Time:
         self.sample_times = np.arange(start=self.start_time,
                                       stop=self.max_time,
                                       step=self.resolution)
+        print(self.sample_times)
+        self.sample_indices = np.linspace(start=0, stop=len(self.sample_times), num=len(self.sample_times), dtype=int)
+        print(self.sample_indices)
         return self.sample_times
 
     def to_index(self, time_value: float) -> int:
-        """ 
-        A horribly inneficient function implementation. 
+        """
+        A horribly inneficient function implementation.
         Finds the index in the `sample_times` of the value equal
         to the user-provided `time_value`.
         Raises an index error if that time value wasn't found.
@@ -84,6 +95,10 @@ cudaq.Time = Time
 
 
 class HardwareControl:
+    """ 
+    Parent class of `ControlSignal` and  `ControlPhase` .
+    Alternative name ideas: `DiscreteControl` 
+    """
     pass
 
 
@@ -167,7 +182,17 @@ class ControlPhase(HardwareControl):
         pass
 
 
+cudaq.ControlPhase = ControlPhase
+
 ################################################################################
+
+
+def unitary_step(index, time_value, time_variable, hamiltonian):
+    initial_name = "custom_operation_"
+    operation_name = initial_name + str(index)
+    unitary_matrix = sp.linalg.expm(-1j * time_variable.resolution *
+                                    hamiltonian(time_value))
+    cudaq.register_operation(unitary_matrix, operation_name=operation_name)
 
 
 def synthesize_unitary(hamiltonian, time_variable):
@@ -178,15 +203,17 @@ def synthesize_unitary(hamiltonian, time_variable):
     You could also parallelize these calculations very nicely
     as each time slice of the unitary is indepdent of the others.
     """
-    initial_name = "custom_operation_"
-    index = 0
+    # # Find out which number processor this particular instance is,
+    # # and how many there are in total
+    # rank = mpi4py.MPI.COMM_WORLD.Get_rank()
+    # size = mpi4py.MPI.COMM_WORLD.Get_size()
+
     # The reverse is necessary for time ordering.
-    for time_value in reversed(time_variable.time_series()):
-        operation_name = initial_name + str(index)
-        unitary_matrix = sp.linalg.expm(-1j * time_variable.resolution *
-                                        hamiltonian(time_value))
-        cudaq.register_operation(unitary_matrix, operation_name=operation_name)
-        index += 1
+    for time_value, time_index in zip(reversed(time_variable.time_series()),
+                                      reversed(time_variable.sample_indices)):
+        # if time_index%size!=rank: continue
+        # print("Task number %d (%d) being done by processor %d of %d" % (time_index, time_value, rank, size))                              
+        unitary_step(time_index, time_value, time_variable, hamiltonian)
     return cudaq.globalRegisteredUnitaries.copy()
 
 
