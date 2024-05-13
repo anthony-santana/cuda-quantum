@@ -164,7 +164,7 @@ def calculate_state_fidelity(want_state, got_state):
 ################################################################################################################
 
 
-def optimization_function(parameters: np.ndarray, want_unitary):
+def optimization_function(parameters: np.ndarray, *args):
     # In this case, we'll just let each individual parameter
     # represent the amplitude at a time chunk. So we will
     # have 1 parameter for each chunk.
@@ -175,26 +175,33 @@ def optimization_function(parameters: np.ndarray, want_unitary):
 
     # Calculate the fidelity and return it as a cost (1 - fidelity)
     # so that our optimizer can minimize the function.
-    cost = 1. - calculate_gate_fidelity(want_unitary, got_gate)
+    cost = 1. - calculate_gate_fidelity(want_gate, got_gate)
     return cost
 
 
-def run_optimization(gate: np.ndarray):
+def run_optimization(unitary_gate: np.ndarray):
     """
     Closed loop optimization of the waveform:
-    Will run the optimization on the provided gate
+    Will optimize the waveform to produce the provided `unitary_gate`.
     """
     # Semi-arbitrary bounds on the amplitude of the waveform.
-    lower = -1.
-    upper = 1.
+    lower = [-1.] * chunks
+    upper = [1.] * chunks
     bounds = optimize.Bounds(lb=lower, ub=upper)
+    global want_gate
+    want_gate = unitary_gate
     # Just using random numbers to start with on our waveform.
-    initial_waveform = np.random.uniform(low=lower, high=upper, size=(chunks,))
-    optimized_result = optimize.minimize(optimization_function,
-                                         initial_waveform,
-                                         args=(gate),
-                                         bounds=bounds,
-                                         method="Nelder-Mead")
+    # initial_waveform = np.random.uniform(low=lower, high=upper, size=(chunks,))
+    initial_waveform = np.full(chunks, fill_value=upper[0])
+    # Use Simulated Annealing to minimize the function.
+    # An alternative optimizer to try is `scipy.basinhopping`
+    optimized_result = optimize.dual_annealing(
+        func=optimization_function,
+        x0=initial_waveform,
+        bounds=list(zip(lower, upper)),
+        #  visit=1.25,
+        no_local_search=True,
+        maxiter=100)
     return optimized_result
 
 

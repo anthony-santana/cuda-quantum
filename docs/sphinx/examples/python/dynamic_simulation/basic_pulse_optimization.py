@@ -59,7 +59,8 @@ def optimization_function(parameters: np.ndarray, want_state):
     # Synthesize the unitary operations for this Hamiltonian with
     # the provided control amplitudes.
     start = time.time()
-    unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
+    unitary_operation_names = cudaq.synthesize_unitary(Hamiltonian,
+                                                       time_variable)
     stop = time.time()
     # print(f"unitary synthesis took {stop-start} seconds")
 
@@ -68,7 +69,7 @@ def optimization_function(parameters: np.ndarray, want_state):
     kernel = cudaq.make_kernel()
     qubit = kernel.qalloc()
 
-    for unitary_operation in unitary_operations.keys():
+    for unitary_operation in unitary_operation_names:
         evaluation_string = "kernel." + unitary_operation + "(qubit)"
         eval(evaluation_string)
 

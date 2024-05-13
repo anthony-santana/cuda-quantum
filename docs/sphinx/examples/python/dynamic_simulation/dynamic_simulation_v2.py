@@ -55,7 +55,7 @@ Hamiltonian = lambda t: np.asarray((H_constant + (control_signal(t) * np.cos(
 
 # We get the synthesized unitarys back as a dict with the keys
 # being the registered unitary name and value being their matrix.
-unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
+unitary_operation_names = cudaq.synthesize_unitary(Hamiltonian, time_variable)
 
 # Allocate a qubit to a kernel that we will apply
 # the time evolution operators to.
@@ -64,8 +64,12 @@ qubit = kernel.qalloc()
 
 # Loop through and apply the registered unitary operations
 # to the kernel.
-for unitary_operation in list(unitary_operations.keys()):
-    print(unitary_operation)
+# Could eventually replace the return from `cudaq.synthesize_unitary`
+# with a special type that has a `.apply()` method. Therefore, you
+# could replace this loop with `unitary_operations.apply(qubit)`
+for unitary_operation in unitary_operation_names:
+    print(unitary_operation
+         )  # make sure it's descending order because of time ordering
     evaluation_string = "kernel." + unitary_operation + "(qubit)"
     eval(evaluation_string)
 

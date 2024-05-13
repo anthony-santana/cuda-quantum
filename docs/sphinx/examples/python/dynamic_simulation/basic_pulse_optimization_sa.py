@@ -18,7 +18,7 @@ omega_0 = 1.0  # arbitrary value in hz.
 
 # `cudaq.Time`
 time_variable = cudaq.Time()
-time_variable.max_time = 5.  # total time, T. arbitrary value in s.
+time_variable.max_time = 2.5  # total time, T. arbitrary value in s.
 time_variable.resolution = 0.25  # time duration for each chunk of time evolution. arbitrary value in s.
 # The number of time chunks that we will optimize amplitudes for.
 chunks = int(time_variable.max_time / time_variable.resolution)
@@ -60,7 +60,8 @@ def optimization_function(x: np.ndarray, *args):
     # Synthesize the unitary operations for this Hamiltonian with
     # the provided control amplitudes.
     start = time.time()
-    unitary_operations = cudaq.synthesize_unitary(Hamiltonian, time_variable)
+    unitary_operation_names = cudaq.synthesize_unitary(Hamiltonian,
+                                                       time_variable)
     stop = time.time()
     # print(f"unitary synthesis took {stop-start} seconds")
 
@@ -69,7 +70,7 @@ def optimization_function(x: np.ndarray, *args):
     kernel = cudaq.make_kernel()
     qubit = kernel.qalloc()
 
-    for unitary_operation in unitary_operations.keys():
+    for unitary_operation in unitary_operation_names:
         evaluation_string = "kernel." + unitary_operation + "(qubit)"
         eval(evaluation_string)
 
@@ -142,15 +143,15 @@ print("h_state = ", h_state)
 print("abs(h_state) = ", np.abs(h_state))
 print("fidelity = ", 1.0 - h_result.fun, "\n")
 
-# Optimize for a randomly generated Unitary matrix.
-random_gate = stats.unitary_group.rvs(2)
-print("random_gate = ", random_gate)
-random_result = run_optimization(random_gate)
-random_waveform = random_result.x
-random_state = got_states[-1]
-print("random_state = ", random_state)
-print("abs(random_state) = ", np.abs(random_state))
-print("fidelity = ", 1.0 - random_result.fun, "\n")
+# # Optimize for a randomly generated Unitary matrix.
+# random_gate = stats.unitary_group.rvs(2)
+# print("random_gate = ", random_gate)
+# random_result = run_optimization(random_gate)
+# random_waveform = random_result.x
+# random_state = got_states[-1]
+# print("random_state = ", random_state)
+# print("abs(random_state) = ", np.abs(random_state))
+# print("fidelity = ", 1.0 - random_result.fun, "\n")
 
 #################################################################################################################
 

@@ -6,11 +6,16 @@ import random
 import numpy as np
 import scipy as sp
 
-# import mpi4py.MPI
+import itertools
+# from multiprocessing import Pool
+from multiprocess import Pool
 
 # TODO:
+# 1. Parallelize the unitary synthesis across each time step
+#    with multiprocessing.
+# 2. Pa
 # 1. Speed up the calculations themselves with CUPY
-# 2. Speed up the unitary synthesis with MPI
+#
 
 
 ################################################################################
@@ -66,9 +71,10 @@ class Time:
         self.sample_times = np.arange(start=self.start_time,
                                       stop=self.max_time,
                                       step=self.resolution)
-        print(self.sample_times)
-        self.sample_indices = np.linspace(start=0, stop=len(self.sample_times), num=len(self.sample_times), dtype=int)
-        print(self.sample_indices)
+        self.sample_indices = np.linspace(start=0,
+                                          stop=len(self.sample_times),
+                                          num=len(self.sample_times),
+                                          dtype=int)
         return self.sample_times
 
     def to_index(self, time_value: float) -> int:
@@ -187,12 +193,19 @@ cudaq.ControlPhase = ControlPhase
 ################################################################################
 
 
-def unitary_step(index, time_value, time_variable, hamiltonian):
-    initial_name = "custom_operation_"
-    operation_name = initial_name + str(index)
+def unitary_step(time_value, time_variable, hamiltonian):
+    """
+    Function that we can call in parallel to compute
+    unitaries for individual time slices.
+
+    We will have to loop through all of these unitaries again
+    later on to register them with cudaq, as it does not mesh
+    nicely when trying to register them here when using multi-
+    processing.
+    """
     unitary_matrix = sp.linalg.expm(-1j * time_variable.resolution *
                                     hamiltonian(time_value))
-    cudaq.register_operation(unitary_matrix, operation_name=operation_name)
+    return unitary_matrix
 
 
 def synthesize_unitary(hamiltonian, time_variable):
@@ -203,18 +216,32 @@ def synthesize_unitary(hamiltonian, time_variable):
     You could also parallelize these calculations very nicely
     as each time slice of the unitary is indepdent of the others.
     """
-    # # Find out which number processor this particular instance is,
-    # # and how many there are in total
-    # rank = mpi4py.MPI.COMM_WORLD.Get_rank()
-    # size = mpi4py.MPI.COMM_WORLD.Get_size()
-
     # The reverse is necessary for time ordering.
-    for time_value, time_index in zip(reversed(time_variable.time_series()),
-                                      reversed(time_variable.sample_indices)):
-        # if time_index%size!=rank: continue
-        # print("Task number %d (%d) being done by processor %d of %d" % (time_index, time_value, rank, size))                              
-        unitary_step(time_index, time_value, time_variable, hamiltonian)
-    return cudaq.globalRegisteredUnitaries.copy()
+    time_sample_values = np.flip(time_variable.time_series())
+    time_sample_indices = np.flip(time_variable.sample_indices)
+
+    # Trying multiprocessing.
+    pool = Pool()
+
+    # Need these args to be passed with multiprocessing,
+    # so make repeats of them to loop through.
+    time_variable_repeat = itertools.repeat(time_variable,
+                                            len(time_sample_indices))
+    hamiltonian_repeat = itertools.repeat(hamiltonian, len(time_sample_indices))
+    _args = zip(time_sample_values, time_variable_repeat, hamiltonian_repeat)
+    # Call `unitary_step` in parallel.
+    unitary_matrices = pool.starmap(unitary_step, _args)
+    for unitary, time_index in zip(unitary_matrices, time_sample_indices):
+        initial_name = "custom_operation_"
+        operation_name = initial_name + str(time_index)
+        print(operation_name)
+        cudaq.register_operation(unitary, operation_name=operation_name)
+
+    # Close the process pool
+    pool.close()
+    pool.join()
+
+    return cudaq.globalRegisteredUnitaries.keys()
 
 
 cudaq.synthesize_unitary = synthesize_unitary
