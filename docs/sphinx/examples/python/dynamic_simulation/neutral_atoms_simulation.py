@@ -27,11 +27,13 @@ def hamiltonian(amplitude: float, phase: float, detuning: float) -> np.ndarray:
     provided the laser amplitude, phase, and detuning at that time
     instant.
     """
-    term_1 = np.exp(1j * phase) * np.outer(np.array([1., 0]), np.array([0., 1.]))
+    term_1 = np.exp(1j * phase) * np.outer(np.array([1., 0]), np.array([0., 1.
+                                                                       ]))
     H_control = (amplitude / 2.) * (term_1 + np.conj(term_1).T)
     H_detuning = detuning * np.outer(np.array([0., 1.]), np.array([0., 1.]))
     # Have no interaction term because only working with 1-qubit.
     return H_control + H_detuning
+
 
 ################################################################################################################
 
@@ -39,9 +41,7 @@ def hamiltonian(amplitude: float, phase: float, detuning: float) -> np.ndarray:
 def unitary_step(time_step, amplitude, phase, detuning):
     time = dt * time_step
     print("time = ", time_step)
-    U_slice = sp.linalg.expm(
-        -1j * dt *
-        hamiltonian(amplitude, phase, detuning))
+    U_slice = sp.linalg.expm(-1j * dt * hamiltonian(amplitude, phase, detuning))
     return U_slice
 
 
@@ -68,7 +68,8 @@ def parallel_unitary_evolution(waveform: np.ndarray, phase: np.ndarray,
     time_reverse_waveform = np.flip(waveform)
     time_reverse_phase = np.flip(phase)
     time_reverse_detuning = np.flip(detuning)
-    _args = zip(time_steps, time_reverse_waveform, time_reverse_phase, time_reverse_detuning)
+    _args = zip(time_steps, time_reverse_waveform, time_reverse_phase,
+                time_reverse_detuning)
     unitary_matrices = pool.starmap(unitary_step, _args)
 
     # Close the process pool
