@@ -4,6 +4,7 @@ from scipy import optimize
 from scipy import stats
 import matplotlib.pyplot as plt
 
+import functools
 import itertools
 from multiprocess import Pool
 
@@ -19,30 +20,45 @@ import cudaq
 # 6. Model their common sources of noise within the Hamiltonian to create
 #    a more realistic simulation.
 # 7. Translate all of this to C++ code written in CUDA
-# 8. Area underneath waveform should be angle of single qubit rotation
+# 8. Area underneath signal should be angle of single qubit rotation
 
 # NEED TO Have an (x,y) coordinate pair for each qubit
 # This will be used to do the distance calcualtions between
 # them for the interaction terms.
 
+# When thinking about rewriting with CUDA in C++, much of
+# these calculations can just stay on the GPU and all I should
+# need to bring back to the CPU is the actual cost value.
+
 ######################################### Timing Parameters ###################################################
 
-T = 3.5  # total time, T. aritrary value in s.
-dt = 0.25  # time duration of each waveform chunk. arbitrary value in s.
+T = 1.5  # total time, T in microseconds.
+dt = 0.25  # time duration of each signal chunk in microseconds.
 chunks = int(T / dt)  # number of time chunks we will solve for
 
 ################################################################################################################
 
 
-def single_qubit_hamiltonian(qubit, waveform_amplitude, phase, detuning):
-    """ """
+def single_qubit_hamiltonian(qubit, signal_amplitude, phase, detuning):
+    """ 
+    Returns the spin hamiltonian for a single term, at a single time step,
+    in an array of Rydberg atoms. 
+    
+    Args
+    ----
+        `qubit` : the index of the qubit to create the Hamiltonian term for.
+        `signal_amplitude` : the amplitude of this qubits signal/laser at this
+                               time step.
+        `phase` : the phase of the laser at this time step.
+        `detuning` : the laser detuning at this time step.                      
+    """
     basis_term_01 = 0.5 * (cudaq.spin.x(qubit) - (1j * cudaq.spin.y(qubit)))
     basis_term_01_conj = (0.5 * (cudaq.spin.x(qubit) +
                                  (1j * cudaq.spin.y(qubit))))
     basis_n_i = 0.5 * (cudaq.spin.i(qubit) - cudaq.spin.z(qubit))
     phase_factor = np.exp(1j * phase)
     # Define the parameterized Hamiltonian using CUDA-Q spin operators.
-    single_qubit_hamiltonian = ((waveform_amplitude / 2.) *
+    single_qubit_hamiltonian = ((signal_amplitude / 2.) *
                                 ((phase_factor * basis_term_01) +
                                  (np.conj(phase_factor) * basis_term_01_conj)))
     single_qubit_hamiltonian -= (detuning * basis_n_i)
@@ -54,7 +70,7 @@ def hamiltonian(amplitudes: tuple[float],
                 detunings: tuple[float],
                 V_ij: float = 1.0) -> np.ndarray:
     """
-    Hamiltonian for multiple Rydberg atoms.
+    Hamiltonian for multiple Rydberg atoms (currently only support chain).
 
     --> This means I'm redefining the spin op at every time step from
         scratch which is certainly time inneficient.
@@ -73,18 +89,34 @@ def hamiltonian(amplitudes: tuple[float],
     so I can't paralellize this as well. If it turns out that
     outer loop is faster than I expect, I can flip it.
     """
+    # FIXME: Just using the same fixed distance for each atom in
+    # a chain right now.
+    interaction_energy_c6 = 862690 * 2 * np.pi  # MHz * micrometer^6
+    atom_distance = 4  # micrometer
+    V_ij = interaction_energy_c6 / (atom_distance**6)
+
     hamiltonian = 0.0
     for qubit in range(qubit_count):
-        waveform_amplitude = amplitudes[qubit]
+        signal_amplitude = amplitudes[qubit]
         phase = phases[qubit]
         detuning = detunings[qubit]
-        hamiltonian += single_qubit_hamiltonian(qubit, waveform_amplitude,
-                                                phase, detuning)
+        hamiltonian += single_qubit_hamiltonian(qubit, signal_amplitude, phase,
+                                                detuning)
+
+    # FIXME: This term doesn't change across time steps so I should
+    #        really calculate it once and just insert it here every time.
 
     # Don't really need individual functions here for the n i and j terms
     # since they're the same with different indices. But it's helpful to be
     # explicit while I work this code out.
-æ
+    basis_n_i = lambda i_qubit: 0.5 * (cudaq.spin.i(i_qubit) - cudaq.spin.z(
+        i_qubit))
+    basis_n_j = lambda j_qubit: 0.5 * (cudaq.spin.i(j_qubit) - cudaq.spin.z(
+        j_qubit))
+    # Interaction term is: `Sum (i < j) V * n_i * n_j` .
+    for j in range(qubit_count):
+        for i in range(j - 1):
+            hamiltonian += (V_ij * basis_n_i(i) * basis_n_j(j))
     return np.asarray(hamiltonian.to_matrix())
 
 
@@ -93,25 +125,28 @@ def hamiltonian(amplitudes: tuple[float],
 
 def unitary_step(time_step, amplitudes, phases, detunings):
     time = dt * time_step
-    print("time = ", time_step)
     U_slice = sp.linalg.expm(-1j * dt *
                              hamiltonian(amplitudes, phases, detunings))
     return U_slice
 
 
-def parallel_unitary_evolution(waveforms: np.ndarray, phases: np.ndarray,
+def parallel_unitary_evolution(signals: np.ndarray, phases: np.ndarray,
                                detunings: np.ndarray,
                                chunks: int) -> np.ndarray:
     """
     Calculates the unitary time evolution given the hamiltonian, a 
-    waveform, and a number of time chunks.
+    signal, and a number of time chunks.
 
-    Accepts:
-    `waveforms` : array of tuple of waveform samples. tuple contains a sample for each control .
-    `phases` : array of each tuple of laser phases
-    `detunings` : array of each tuple of laser detunings
-    `chunks` : the number of time steps.
+    Args
+    ----
+        `signals` : array of tuple of signal samples. 
+                      tuple contains a sample for each control .
+        `phases` : array of each tuple of laser phases
+        `detunings` : array of each tuple of laser detunings
+        `chunks` : the number of time steps.
 
+
+    Uses Trotter-Suzuki decomposition:
 
     U(T) = U(T) * U(T-1) * U(T-2) * ... * U(t=0)
     where
@@ -124,15 +159,18 @@ def parallel_unitary_evolution(waveforms: np.ndarray, phases: np.ndarray,
     # from U(T) down to U(0)
     U_t = np.identity(2**qubit_count)
 
-    pool = Pool()
+    # Setting the total number of processes to 1 for now
+    # since it's quicker when only doing very coarse time
+    # evolution for a small number of time steps.
+    pool = Pool(processes=1)
 
     time_steps = np.flip(np.arange(start=0, stop=chunks, dtype=int))
 
     # TODO:
-    # I've already passed the waveforms and everything into here
+    # I've already passed the signals and everything into here
     # split up and stacked so I don't have to do any extra formatting.
     # May move that code logic here in the future but idk.
-    _args = zip(time_steps, waveforms, phases, detunings)
+    _args = zip(time_steps, signals, phases, detunings)
     unitary_matrices = pool.starmap(unitary_step, _args)
 
     # Close the process pool
@@ -186,16 +224,20 @@ def optimization_function(parameters: np.ndarray, *args):
     # Flipping these ahead of time for time ordering, since they'll all
     # be nested away and more inconvenient to flip then.
     flipped_parameters = np.flip(parameters)
-    # TODO: Write a comment about the convention I used to unpack these.
     # TODO: Write this code in a more efficient manner. There's a lot of data
     #       splitting, merging, stacking, etc. that could be avoided with better
     #       code.
+    # The flattened array of parameters comes into us with the leftmost entry
+    # being the first sample of the signal on qubit 0, and the rightmost
+    # entry being the last sample of the detuning "signal" on qubit N.
+    # To properly time order these when simulating time evolution, we flip the
+    # parameters array and partition the parameters to their respective location.
     detunings = np.split(flipped_parameters[0:qubit_count * chunks],
                          qubit_count)
     phases = np.split(
         flipped_parameters[qubit_count * chunks:2 * qubit_count * chunks],
         qubit_count)
-    waveforms = np.split(
+    signals = np.split(
         flipped_parameters[2 * qubit_count * chunks:len(parameters)],
         qubit_count)
 
@@ -203,10 +245,10 @@ def optimization_function(parameters: np.ndarray, *args):
     # tuples so we can paralellize.
     stacked_detunings = np.column_stack(tuple(detunings))
     stacked_phases = np.column_stack(tuple(phases))
-    stacked_waveform_samples = np.column_stack(tuple(waveforms))
+    stacked_signal_samples = np.column_stack(tuple(signals))
 
     # Get the evolved unitary matrix.
-    got_gate = parallel_unitary_evolution(stacked_waveform_samples,
+    got_gate = parallel_unitary_evolution(stacked_signal_samples,
                                           stacked_phases, stacked_detunings,
                                           chunks)
 
@@ -249,10 +291,10 @@ def run_optimization(want_gate: np.ndarray):
 
     bounds = (amplitude_bounds + phase_bounds + detuning_bounds)
 
-    # Just using random numbers to start with on our waveform.
-    initial_waveform = np.random.uniform(low=lower_amplitude,
-                                         high=upper_amplitude,
-                                         size=(qubit_count * chunks,))
+    # Just using random numbers to start with on our signal.
+    initial_signal = np.random.uniform(low=lower_amplitude,
+                                       high=upper_amplitude,
+                                       size=(qubit_count * chunks,))
     initial_phases = np.random.uniform(low=lower_phase,
                                        high=upper_phase,
                                        size=(qubit_count * chunks,))
@@ -262,7 +304,7 @@ def run_optimization(want_gate: np.ndarray):
 
     initial_controls = []
     initial_controls = np.concatenate(
-        (initial_waveform, initial_phases, initial_detunings))
+        (initial_signal, initial_phases, initial_detunings))
 
     optimization_function(initial_controls)
 
@@ -274,17 +316,48 @@ def run_optimization(want_gate: np.ndarray):
     # return optimized_result
 
 
+def broadcast_single_qubit_gate(single_qubit_operation: np.ndarray,
+                                qubit_count: int):
+    """
+    Returns the matrix for a single-qubit gate, broadcast
+    to be applied to the entire Hilbert space.
+    """
+    return functools.reduce(np.kron, [single_qubit_operation] * qubit_count)
+
+
 ################################################################################################################
 
-# Now let's optimize for a randomly generated Unitary matrix.
-qubit_count = 3
-random_gate = stats.unitary_group.rvs(2**qubit_count)
-random_result = run_optimization(random_gate)
-random_waveform = random_result.x
-got_random = unitary_evolution(random_waveform, chunks)
-# Let's evolve the initial state (|0>) and check how close it is to our desired state
-psi_want_random = np.abs(np.dot(np.conj(random_gate), psi_initial))
-psi_got_random = np.abs(np.dot(got_random, psi_initial))
+qubit_count = 2
+
+######################################## X-180 rotation of system ##############################################
+
+# Now let's optimize for an X-rotation
+x_180_rotation = np.flip(np.eye(2**qubit_count))
+x_180_result = run_optimization(x_180_rotation)
+x_180_signal = x_180_result.x
+print("final X-180 cost = ", x_180_result.fun)
+
+######################################### Hadamard operation on system ##########################################
+
+single_hadamard_operation = (1 / np.sqrt(2)) * np.array([[1., 1.], [1., -1.]])
+hadamard_operation = broadcast_single_qubit_gate(single_hadamard_operation,
+                                                 qubit_count)
+hadamard_operation_result = run_optimization(hadamard_operation_rotation)
+hadamard_operation_signal = hadamard_operation_result.x
+print("final Hadamard cost = ", hadamard_operation_result.fun)
+
+################################################################################################################
+
+# # Now let's optimize for a randomly generated Unitary matrix.
+# random_gate = stats.unitary_group.rvs(2**qubit_count)
+# random_result = run_optimization(random_gate)
+# random_signal = random_result.x
+# print("final cost = ", random_result.fun)
+
+# ################################################################################################################
+
+# TODO:
+# Apply different operations to different qubits.
 
 # ################################################################################################################
 
@@ -310,18 +383,18 @@ psi_got_random = np.abs(np.dot(got_random, psi_initial))
 
 # ################################################################################################################
 
-# # Make pretty pictures of the waveforms
+# # Make pretty pictures of the signals
 
 # time_values = np.linspace(0, T, chunks)
 
 # fig, axs = plt.subplots(3)
-# axs[0].set_title("Optimized X Waveform")
-# axs[0].step(time_values, x_waveform)
-# axs[1].set_title("Optimized Hadamard Waveform")
-# axs[1].step(time_values, hadamard_waveform)
-# axs[1].set_ylabel("Waveform Amplitude")
-# axs[2].set_title("Optimized Random Waveform")
-# axs[2].step(time_values, random_waveform)
+# axs[0].set_title("Optimized X Signal")
+# axs[0].step(time_values, x_signal)
+# axs[1].set_title("Optimized Hadamard Signal")
+# axs[1].step(time_values, hadamard_signal)
+# axs[1].set_ylabel("signal Amplitude")
+# axs[2].set_title("Optimized Random Signal")
+# axs[2].step(time_values, random_signal)
 # axs[2].set_xlabel("Time\n(N_time_chunks * dt = T)")
 # fig.tight_layout(pad=1.0)
 
