@@ -17,7 +17,7 @@ import cudaq
 
 ######################################### Timing Parameters ###################################################
 
-T = 2.5  # total time, T in microseconds.
+T = 1.  # total time, T in microseconds.
 dt = 0.25  # time duration of each signal chunk in microseconds.
 chunks = int(T / dt)  # number of time chunks we will solve for
 
@@ -264,11 +264,17 @@ def run_optimization(_qubit_count: int):
     initial_controls = np.concatenate(
         (initial_signal, initial_phases, initial_detunings))
 
-    optimized_result = optimize.minimize(optimization_function,
-                                         initial_controls,
-                                         bounds=bounds,
-                                         method="Nelder-Mead")
+    # optimized_result = optimize.minimize(optimization_function,
+    #                                      initial_controls,
+    #                                      bounds=bounds,
+    #                                      method="Nelder-Mead")
 
+    optimized_result = optimize.dual_annealing(
+        func=optimization_function,
+        x0=initial_controls,
+        bounds=bounds)#,
+        # visit=1.25,
+        # no_local_search=True)
     return optimized_result
 
 

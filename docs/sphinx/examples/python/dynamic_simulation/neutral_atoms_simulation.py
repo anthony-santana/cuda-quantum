@@ -10,7 +10,7 @@ from multiprocess import Pool
 
 ######################################### Timing Parameters ###################################################
 
-T = 3.5  # total time, T. aritrary value in s.
+T = 1.5  # total time, T. aritrary value in s.
 dt = 0.25  # time duration of each waveform chunk. arbitrary value in s.
 chunks = int(T / dt)  # number of time chunks we will solve for
 
