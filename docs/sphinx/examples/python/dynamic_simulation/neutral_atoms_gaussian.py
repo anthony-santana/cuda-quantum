@@ -10,6 +10,15 @@ from multiprocess import Pool
 
 import cudaq
 
+
+# TODO:
+# 1. Test the impact of modeling the phase as a Gaussian
+
+
+# Fix the number of samples (`chunks`), then the T and dt become bounded parameters.
+# t  \in [1.0, 5.0]  # semi-arbitrary, test these values out
+# dt \in [0.125, .4] # semi-arbitrary, test these values out
+
 ######################################### Timing Parameters ###################################################
 
 T = 2.0  # total time, T in microseconds.
@@ -22,6 +31,9 @@ chunks = int(T / dt)  # number of time chunks we will solve for
 
 def gaussian_square_signal(amplitude, square_sample_count, sigma):
     """ 
+    To be more realistic with hardware slew rates, testing a Gaussian
+    Square signal that will have more realizable slopes between samples.
+
     Args
     ----
         signal_sample_count : the number of samples of the entire signal
@@ -244,22 +256,12 @@ def optimization_function(parameters: np.ndarray, *args):
 
     detunings = np.split(flipped_parameters[0:qubit_count * chunks],
                          qubit_count)
-
     phases = np.split(
         flipped_parameters[qubit_count * chunks:2 * qubit_count * chunks],
         qubit_count)
 
-    # Parameter packing convention:
-    # """
-    # T = 1.25  # total time, T in microseconds.
-    # dt = 0.25  # time duration of each signal chunk in microseconds.
-    # chunks = int(T / dt)  # number of time chunks we will solve for
-
-    # def gaussian_square_signal(amplitude, signal_sample_count, square_sample_count,
-    #                         sigma):
-    # """
     signal_parameters = np.split(np.flip(flipped_parameters[2 * qubit_count * chunks:]), qubit_count)
-    signals = [gaussian_square_signal(*_arg) for _arg in signal_parameters]
+    signals = [np.flip(gaussian_square_signal(*_arg)) for _arg in signal_parameters]
     # print(signals)
 
     # for signal in signals:
@@ -305,12 +307,12 @@ def run_optimization(want_gate: np.ndarray):
     # Bounds on the amplitude of the laser.
     lower_amplitude = [0.]
     upper_amplitude = [5. * np.pi]
-    # Will use this value to divide the total width.
-    lower_square_width = [1.]
-    upper_square_width = [10.]  # arbitrary
+    # Width of the square top portion.
+    lower_square_width = [0.1]
+    upper_square_width = [T]  # can have a square top up to the entire signal duration
     # Sigma bounds.
     lower_sigma = [1.]
-    upper_sigma = [2.]  # arbitrary
+    upper_sigma = [2.]  # semi-arbitrarily chosen
     # Packed up bounds.
     # [ (amplitude_0, width_0, sigma_0), ..., (amplitude_n, width_n, sigma_n) ]
     gaussian_lower_bounds = (lower_amplitude + lower_square_width +
@@ -357,8 +359,6 @@ def run_optimization(want_gate: np.ndarray):
     initial_controls = np.concatenate(
         (initial_gaussian_parameters, initial_phases, initial_detunings))
 
-    # optimization_function(initial_controls)
-
     optimized_result = optimize.minimize(optimization_function,
                                          initial_controls,
                                          args=(want_gate),
@@ -375,15 +375,15 @@ def run_optimization(want_gate: np.ndarray):
 
 ################################################################################################################
 
-qubit_count = 3
+qubit_count = 1
 
 ######################################## X-180 rotation of system ##############################################
 
 # Now let's optimize for an X-rotation
 x_180_rotation = np.fliplr(np.eye(2**qubit_count))
 x_180_result = run_optimization(x_180_rotation)
-x_180_signal = x_180_result.x
-print("final X-180 cost = ", x_180_result.fun, "\n")
+# x_180_signal = x_180_result.x
+# print("final X-180 cost = ", x_180_result.fun, "\n")
 
 ########################################## Hadamard operation on system ##########################################
 
