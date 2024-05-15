@@ -8,42 +8,54 @@ import functools
 import itertools
 from multiprocess import Pool
 
-# import optax
-# import tensorflow as tf
-# import tensorflow_probability as tfp
-
 import cudaq
-
-import cupy as cp
-from cupyx.scipy.linalg import expm
-
-# TODO:
-# 1. Speed up certain calculations in parallel
-# 2. Get rid of inneficiencies in certain calculations
-#    (such as how I pack and unpack params)
-# 3. Move linear algebra to cupy for speed up
-# 4. Make the actual qubit positions an optimizable parameter
-# 5. Create data types to make the code more generally understandable
-# 6. Model their common sources of noise within the Hamiltonian to create
-#    a more realistic simulation.
-# 7. Translate all of this to C++ code written in CUDA
-# 8. Area underneath signal should be angle of single qubit rotation
-
-# NEED TO Have an (x,y) coordinate pair for each qubit
-# This will be used to do the distance calcualtions between
-# them for the interaction terms.
-
-# When thinking about rewriting with CUDA in C++, much of
-# these calculations can just stay on the GPU and all I should
-# need to bring back to the CPU is the actual cost value.
 
 ######################################### Timing Parameters ###################################################
 
-T = 1.25  # total time, T in microseconds.
-dt = 0.25  # time duration of each signal chunk in microseconds.
+T = 2.0  # total time, T in microseconds.
+dt = 0.125  # time duration of each signal chunk in microseconds.
+global chunks
 chunks = int(T / dt)  # number of time chunks we will solve for
 
 ################################################################################################################
+
+
+def gaussian_square_signal(amplitude, square_sample_count, sigma):
+    """ 
+    Args
+    ----
+        signal_sample_count : the number of samples of the entire signal
+                              Keeping this value fixed for now.
+        amplitude : amplitude of flattop portion of signal
+        square_sample_count : the number of samples of the square portion
+        sigma : width of gaussian risefall
+    
+
+    Square wave with Gaussian rise/fall.
+
+            exp( -0.5 * ((x - risefall)**2)/(sigma**2))         , x < risefall
+    f'(x) = 1                                                   , risefall <= x < risefall + width
+            exp( -0.5 * ((x - (risefall+width))**2)/(sigma**2)) , risefall + width <= x
+    
+    f(x) = amplitude * (f_prime(x) - f_prime(-1)) / (1. - f_prime(-1))
+    """
+
+    signal_sample_count = chunks
+
+    risefall = (signal_sample_count - square_sample_count) / 2.
+
+    def f_prime(x):
+        if (x < risefall):
+            return np.exp(-0.5 * ((x - risefall)**2) / (sigma**2))
+        elif ((risefall + square_sample_count) <= x):
+            return np.exp(-0.5 * ((x - (risefall + square_sample_count))**2) /
+                          (sigma**2))
+        return 1
+
+    def f(x):
+        return amplitude * (f_prime(x) - f_prime(-1)) / (1. - f_prime(-1))
+
+    return [f(x) for x in np.arange(start=0.0, stop=signal_sample_count)]
 
 
 def single_qubit_hamiltonian(qubit, signal_amplitude, phase, detuning):
@@ -229,22 +241,30 @@ def optimization_function(parameters: np.ndarray, *args):
     # numpy_parameters = parameters.numpy()
     # flipped_parameters = np.flip(numpy_parameters)
     flipped_parameters = np.flip(parameters)
-    # TODO: Write this code in a more efficient manner. There's a lot of data
-    #       splitting, merging, stacking, etc. that could be avoided with better
-    #       code.
-    # The flattened array of parameters comes into us with the leftmost entry
-    # being the first sample of the signal on qubit 0, and the rightmost
-    # entry being the last sample of the detuning "signal" on qubit N.
-    # To properly time order these when simulating time evolution, we flip the
-    # parameters array and partition the parameters to their respective location.
+
     detunings = np.split(flipped_parameters[0:qubit_count * chunks],
                          qubit_count)
+
     phases = np.split(
         flipped_parameters[qubit_count * chunks:2 * qubit_count * chunks],
         qubit_count)
-    signals = np.split(
-        flipped_parameters[2 * qubit_count * chunks:len(parameters)],
-        qubit_count)
+
+    # Parameter packing convention:
+    # """
+    # T = 1.25  # total time, T in microseconds.
+    # dt = 0.25  # time duration of each signal chunk in microseconds.
+    # chunks = int(T / dt)  # number of time chunks we will solve for
+
+    # def gaussian_square_signal(amplitude, signal_sample_count, square_sample_count,
+    #                         sigma):
+    # """
+    signal_parameters = np.split(np.flip(flipped_parameters[2 * qubit_count * chunks:]), qubit_count)
+    signals = [gaussian_square_signal(*_arg) for _arg in signal_parameters]
+    # print(signals)
+
+    # for signal in signals:
+    #     plt.plot(signal)
+    # plt.savefig(f"out.png")
 
     # Stack all of the simulataneous samples across all qubits into
     # tuples so we can paralellize.
@@ -275,15 +295,31 @@ def run_optimization(want_gate: np.ndarray):
     global qubit_count
     qubit_count = int(np.log2(want_gate.shape[0]))
 
-    # TODO:
-    # 1. Lessen the parameter landscape by picking a fixed value
-    #    for things like the phase, etc. and doing small modulations
-    #    to it (smaller parameter range).
+    # parameters:
+    # for each qubit have:
+    # [(gaussian_signal_i, ...,  phase_signal_i, ..., detuning_signal_i, ...)]
+    # <==>
+    # [ ( (amplitude, square_width, sigma), ..., ( chunks_width_signal ), ..., (chunks_width_signal), ... )]
 
+    # Gaussian signal bounds.
     # Bounds on the amplitude of the laser.
-    lower_amplitude = [0.] * (qubit_count * chunks)
-    upper_amplitude = [5. * np.pi] * (qubit_count * chunks)
-    amplitude_bounds = list(zip(lower_amplitude, upper_amplitude))
+    lower_amplitude = [0.]
+    upper_amplitude = [5. * np.pi]
+    # Will use this value to divide the total width.
+    lower_square_width = [1.]
+    upper_square_width = [10.]  # arbitrary
+    # Sigma bounds.
+    lower_sigma = [1.]
+    upper_sigma = [2.]  # arbitrary
+    # Packed up bounds.
+    # [ (amplitude_0, width_0, sigma_0), ..., (amplitude_n, width_n, sigma_n) ]
+    gaussian_lower_bounds = (lower_amplitude + lower_square_width +
+                             lower_sigma) * qubit_count
+    gaussian_upper_bounds = (upper_amplitude + upper_square_width +
+                             upper_sigma) * qubit_count
+    amplitude_bounds = list(zip(gaussian_lower_bounds, gaussian_upper_bounds))
+
+    # print(amplitude_bounds)
 
     # Phase bounds.
     lower_phase = [0.] * (qubit_count * chunks)
@@ -297,10 +333,19 @@ def run_optimization(want_gate: np.ndarray):
 
     bounds = (amplitude_bounds + phase_bounds + detuning_bounds)
 
-    # Just using random numbers to start with on our signal.
-    initial_signal = np.random.uniform(low=lower_amplitude,
-                                       high=upper_amplitude,
-                                       size=(qubit_count * chunks,))
+    # Just using random parameter values for our initial Gaussians.
+    initial_amplitudes = np.random.uniform(low=lower_amplitude,
+                                           high=upper_amplitude,
+                                           size=(qubit_count,))
+    initial_square_widths = np.random.uniform(low=lower_square_width,
+                                              high=upper_square_width,
+                                              size=(qubit_count,))
+    initial_sigmas = np.random.uniform(low=lower_sigma,
+                                       high=upper_sigma,
+                                       size=(qubit_count,))
+    initial_gaussian_parameters = np.column_stack(
+        (initial_amplitudes, initial_square_widths, initial_sigmas)).flatten()
+    # Just using random numbers to start with on our signals.
     initial_phases = np.random.uniform(low=lower_phase,
                                        high=upper_phase,
                                        size=(qubit_count * chunks,))
@@ -310,131 +355,41 @@ def run_optimization(want_gate: np.ndarray):
 
     initial_controls = []
     initial_controls = np.concatenate(
-        (initial_signal, initial_phases, initial_detunings))
+        (initial_gaussian_parameters, initial_phases, initial_detunings))
 
-    # initial_controls_cast = tuple([tf.constant(value, tf.float64) for value in initial_controls])
-    # # Optimizing as one large variable that I manually unpack into
-    # # the proper place. This is to keep this script compatible with
-    # # scipy optimizers, but could be reworked at some point.
-    # controls_to_optimize = tf.Variable(initial_controls)
-    # print(controls_to_optimize)
-    # optim_results = tfp.optimizer.differential_evolution_minimize(
-    #     optimization_function,
-    #     initial_position=initial_controls_cast,
-    #     seed=43210)
-    # print(optim_results.converged)
+    # optimization_function(initial_controls)
 
-    # optimized_result = optimize.minimize(optimization_function,
-    #                                      initial_controls,
-    #                                      args=(want_gate),
-    #                                      bounds=bounds,
-    #                                     #  method="SLSQP")
-    #                                     #  method="trust-constr")
-    #                                      method="Nelder-Mead")
+    optimized_result = optimize.minimize(optimization_function,
+                                         initial_controls,
+                                         args=(want_gate),
+                                         bounds=bounds,
+                                        #  method="SLSQP")
+                                        #  method="trust-constr")
+                                         method="Nelder-Mead")
 
-    optimized_result = optimize.dual_annealing(func=optimization_function,
-                                               x0=initial_controls,
-                                               bounds=bounds)  #,
-    # visit=1.25,
-    # no_local_search=True)
+    # optimized_result = optimize.dual_annealing(func=optimization_function,
+    #                                            x0=initial_controls,
+    #                                            bounds=bounds)
     return optimized_result
 
 
-def broadcast_single_qubit_operation(single_qubit_operation: np.ndarray,
-                                     qubit_count: int):
-    """
-    Returns the matrix for a single-qubit gate, broadcast
-    to be applied to the entire Hilbert space.
-    """
-    return functools.reduce(np.kron, [single_qubit_operation] * qubit_count)
-
-
-def broadcast_individual_operations(operations: list[np.ndarray]):
-    # TODO: Need to broadcast each against identity operations
-    # before I add them each up.
-    full_gate = []
-    single_qubit_identity = np.eye(2)
-    broadcast_list = [single_qubit_identity] * len(operations)
-    print("operations = ", operations)
-    print(broadcast_list)
-    for operation_index, operation in enumerate(operations):
-        print("index = ", operation_index)
-        broadcast_list[operation_index] = operation
-        print(broadcast_list)
-        # print(functools.reduce(np.kron, broadcast_list))
-        full_gate.append(functools.reduce(np.kron, broadcast_list))
-        broadcast_list[operation_index] = single_qubit_identity
-    return sum(full_gate)
-
-
 ################################################################################################################
 
-qubit_count = 6
+qubit_count = 3
 
 ######################################## X-180 rotation of system ##############################################
 
-# # Now let's optimize for an X-rotation
-# x_180_rotation = np.fliplr(np.eye(2**qubit_count))
-# x_180_result = run_optimization(x_180_rotation)
-# x_180_signal = x_180_result.x
-# print("final X-180 cost = ", x_180_result.fun, "\n")
+# Now let's optimize for an X-rotation
+x_180_rotation = np.fliplr(np.eye(2**qubit_count))
+x_180_result = run_optimization(x_180_rotation)
+x_180_signal = x_180_result.x
+print("final X-180 cost = ", x_180_result.fun, "\n")
 
 ########################################## Hadamard operation on system ##########################################
 
-single_hadamard_operation = (1 / np.sqrt(2)) * np.array([[1., 1.], [1., -1.]])
-hadamard_operation = broadcast_single_qubit_operation(single_hadamard_operation,
-                                                      qubit_count)
-hadamard_operation_result = run_optimization(hadamard_operation)
-hadamard_operation_signal = hadamard_operation_result.x
-print("final Hadamard cost = ", hadamard_operation_result.fun, "\n")
-
-########################################## Operations on isolated atoms ##########################################
-
-# FIXME: Produces the wrong operation
-
-# single_x_180_rotation = np.fliplr(np.eye(2))
 # single_hadamard_operation = (1 / np.sqrt(2)) * np.array([[1., 1.], [1., -1.]])
-# # Will apply an X-180 rotation to every other atom, and a Hadamard operation
-# # to the untouched atoms.
-# individual_operation_list = [None] * qubit_count
-# for qubit in range(qubit_count):
-#     if ((qubit % 2) != 0):
-#         individual_operation_list[qubit] = single_hadamard_operation
-#     else:
-#         individual_operation_list[qubit] = single_x_180_rotation
-# full_operation = broadcast_individual_operations(individual_operation_list)
-# print(full_operation)
-
-# zero = np.array([1.,0.,0.,0.])
-# print("\n", np.dot(full_operation, zero), "\n")
-
-# # result = run_optimization(full_operation)
-# # signal = result.x
-# # print("final mixed gates cost = ", result.fun, "\n")
-
-################################################################################################################
-
-# # Now let's optimize for a randomly generated Unitary matrix.
-# random_gate = stats.unitary_group.rvs(2**qubit_count)
-# random_result = run_optimization(random_gate)
-# random_signal = random_result.x
-# print("final cost = ", random_result.fun)
-
-# ################################################################################################################
-
-# # Make pretty pictures of the signals
-
-# time_values = np.linspace(0, T, chunks)
-
-# fig, axs = plt.subplots(3)
-# axs[0].set_title("Optimized X Signal")
-# axs[0].step(time_values, x_signal)
-# axs[1].set_title("Optimized Hadamard Signal")
-# axs[1].step(time_values, hadamard_signal)
-# axs[1].set_ylabel("signal Amplitude")
-# axs[2].set_title("Optimized Random Signal")
-# axs[2].step(time_values, random_signal)
-# axs[2].set_xlabel("Time\n(N_time_chunks * dt = T)")
-# fig.tight_layout(pad=1.0)
-
-# plt.savefig("out.png", bbox_inches="tight", pad_inches=0.5)
+# hadamard_operation = broadcast_single_qubit_operation(single_hadamard_operation,
+#                                                       qubit_count)
+# hadamard_operation_result = run_optimization(hadamard_operation)
+# hadamard_operation_signal = hadamard_operation_result.x
+# print("final Hadamard cost = ", hadamard_operation_result.fun, "\n")

@@ -10,10 +10,8 @@ from multiprocess import Pool
 
 import cudaq
 
-
 # Find the signals, phases, and detunings for N-Rydberg atoms in an
 # array that minimizes the energy expectation value of the system.
-
 
 ######################################### Timing Parameters ###################################################
 
@@ -163,7 +161,8 @@ def parallel_unitary_evolution(signals: np.ndarray, phases: np.ndarray,
 
     initial_name = "custom_operation_"
     for unitary, time_step in zip(unitary_matrices, time_steps):
-      cudaq.register_operation(unitary, operation_name=initial_name + str(time_step))
+        cudaq.register_operation(unitary,
+                                 operation_name=initial_name + str(time_step))
     return cudaq.globalRegisteredUnitaries.keys()
 
 
@@ -185,6 +184,7 @@ kernel.{unitary_operation}(*qubit_args)
 
 
 ################################################################################################################
+
 
 def optimization_function(parameters: np.ndarray):
     # Flipping these ahead of time for time ordering, since they'll all
@@ -210,13 +210,12 @@ def optimization_function(parameters: np.ndarray):
     # Get the name for each unitary time step that we will
     # apply to our system.
     unitary_operations = parallel_unitary_evolution(stacked_signal_samples,
-                                                stacked_phases, stacked_detunings,
-                                                chunks)
+                                                    stacked_phases,
+                                                    stacked_detunings, chunks)
 
     print("energy = ", get_energy_expectation(unitary_operations))
 
     return get_energy_expectation(unitary_operations)
-
 
 
 def run_optimization(_qubit_count: int):
@@ -269,12 +268,11 @@ def run_optimization(_qubit_count: int):
     #                                      bounds=bounds,
     #                                      method="Nelder-Mead")
 
-    optimized_result = optimize.dual_annealing(
-        func=optimization_function,
-        x0=initial_controls,
-        bounds=bounds)#,
-        # visit=1.25,
-        # no_local_search=True)
+    optimized_result = optimize.dual_annealing(func=optimization_function,
+                                               x0=initial_controls,
+                                               bounds=bounds)  #,
+    # visit=1.25,
+    # no_local_search=True)
     return optimized_result
 
 
