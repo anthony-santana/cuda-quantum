@@ -11,17 +11,14 @@ from multiprocess import Pool
 import cudaq
 
 # TODO:
-# 1. Test the impact of modeling the phase as a Gaussian
-
-# Fix the number of samples (`chunks`), then the T and dt become bounded parameters.
-# t  \in [1.0, 5.0]  # semi-arbitrary, test these values out
-# dt \in [0.125, .4] # semi-arbitrary, test these values out
+# Uses a constant amplitude on the phase and detuning throughout the whole
+# global signal routine, but modulates the phase as a Gaussian.
 
 ######################################### Timing Parameters ###################################################
 
-T = 0.25  # total time, T in microseconds. taken from : arxiv.2304.05420
+T = 0.22 # total time, T in microseconds. taken from : arxiv.2304.05420
 global chunks
-chunks = 100  # number of time chunks (samples) contained in our signals
+chunks = 40  # number of time chunks (samples) contained in our signals
 global dt
 dt = T / chunks  # time duration of each signal chunk in microseconds.
 
@@ -159,7 +156,7 @@ def hamiltonian(amplitudes: tuple[float],
 
     # FIXME: Temporary patch while I test out a single global control signal
     #        instead of one per qubit.   
-    # qubit_count = 1      
+    qubit_count = 1      
     return np.asarray(hamiltonian.to_matrix())
 
 
@@ -264,17 +261,12 @@ def optimization_function(parameters: np.ndarray, *args):
     # be nested away and more inconvenient to flip then.
     # numpy_parameters = parameters.numpy()
     # flipped_parameters = np.flip(numpy_parameters)
-    flipped_parameters = np.flip(parameters)
     gaussian_parameter_count = 3  # number of parameters to each gaussian signal
 
-    detunings = np.split(flipped_parameters[0:(qubit_count * chunks)],
-                         qubit_count)
+    amplitude = [parameters[0]]
+    detunings = [parameters[-1]]
+    phase_parameters = np.split(parameters[1:-1], qubit_count)
 
-    phase_parameters = np.split(
-        np.flip(flipped_parameters[(qubit_count *
-                                    chunks):(qubit_count * chunks) +
-                                   (gaussian_parameter_count * qubit_count)]),
-        qubit_count)
     # We flip the phase signal backwards again for reverse time-ordering here.
     phases = [
         np.flip(gaussian_square_signal(*_arg)) for _arg in phase_parameters
@@ -284,16 +276,7 @@ def optimization_function(parameters: np.ndarray, *args):
     #     plt.plot(phase)
     # plt.savefig(f"phase.png")
 
-    signal_parameters = np.split(
-        np.flip(flipped_parameters[(qubit_count * chunks) +
-                                   (gaussian_parameter_count * qubit_count):]),
-        qubit_count)
-    # We flip the signal backwards again for reverse time-ordering here.
-    # Could modify the following part if I make the number of peaks optimizable:
-    signals = [
-        np.flip(gaussian_square_signal(*_arg, number_peaks=2))
-        for _arg in signal_parameters
-    ]
+    signals = [np.full(chunks, amplitude)]
 
     # Stack all of the simulataneous samples across all qubits into
     # tuples so we can paralellize.
@@ -324,34 +307,15 @@ def run_optimization(want_gate: np.ndarray):
     global qubit_count
     # FIXME: Temporary patch while I test out a single global control signal
     #        instead of one per qubit.
-    # qubit_count = 1
-    qubit_count = int(np.log2(gate_to_optimize.shape[0]))
+    qubit_count = 1
+    # qubit_count = int(np.log2(gate_to_optimize.shape[0]))
 
-    # parameters:
-    # for each qubit have:
-    # [(gaussian_signal_i, ...,  phase_signal_i, ..., detuning_signal_i, ...)]
-    # <==>
-    # [ ( (amplitude, square_width, sigma), ..., ( chunks_width_signal ), ..., (chunks_width_signal), ... )]
-
-    # Gaussian signal bounds.
+    # Signal has a single amplitude while we module the phase with
+    # a Gaussian.
     # Bounds on the amplitude of the laser.
     lower_amplitude = [0.]
     upper_amplitude = [5. * np.pi]
-    # Width of the square top portion.
-    lower_square_width = [0.1]
-    upper_square_width = [
-        T
-    ]  # can have a square top up to the entire signal duration
-    # Sigma bounds.
-    lower_sigma = [1.]
-    upper_sigma = [2.]  # semi-arbitrarily chosen
-    # Packed up bounds.
-    # [ (amplitude_0, width_0, sigma_0), ..., (amplitude_n, width_n, sigma_n) ]
-    gaussian_lower_bounds = (lower_amplitude + lower_square_width +
-                             lower_sigma) * qubit_count
-    gaussian_upper_bounds = (upper_amplitude + upper_square_width +
-                             upper_sigma) * qubit_count
-    amplitude_bounds = list(zip(gaussian_lower_bounds, gaussian_upper_bounds))
+    amplitude_bounds = list(zip(lower_amplitude, upper_amplitude))
 
     # Phase bounds. Modeling phase as a Gaussian square signal as well.
     # Bounds on the amplitude of the phase.
@@ -359,9 +323,7 @@ def run_optimization(want_gate: np.ndarray):
     upper_phase_amplitude = [np.pi]
     # Width of the square top portion.
     lower_phase_square_width = [0.1]
-    upper_phase_square_width = [
-        T
-    ]  # can have a square top up to the entire signal duration
+    upper_phase_square_width = [T]  # can have a square top up to the entire signal duration
     # Sigma bounds.
     lower_phase_sigma = [1.]
     upper_phase_sigma = [2.]  # semi-arbitrarily chosen
@@ -374,24 +336,15 @@ def run_optimization(want_gate: np.ndarray):
     phase_bounds = list(zip(lower_phase_bounds, upper_phase_bounds))
 
     # Detuning bounds.
-    lower_detuning = [0.] * (qubit_count * chunks)  # MHz.
-    upper_detuning = [16.33] * (qubit_count * chunks)  # MHz.
+    lower_detuning = [0.] # MHz.
+    upper_detuning = [16.33] # MHz.
     detuning_bounds = list(zip(lower_detuning, upper_detuning))
-
     bounds = (amplitude_bounds + phase_bounds + detuning_bounds)
 
-    # Just using random parameter values for our initial Gaussians.
-    initial_amplitudes = np.random.uniform(low=lower_amplitude,
+    # Just using random parameter values for our initial amplitude.
+    initial_amplitude = np.random.uniform(low=lower_amplitude,
                                            high=upper_amplitude,
-                                           size=(qubit_count,))
-    initial_square_widths = np.random.uniform(low=lower_square_width,
-                                              high=upper_square_width,
-                                              size=(qubit_count,))
-    initial_sigmas = np.random.uniform(low=lower_sigma,
-                                       high=upper_sigma,
-                                       size=(qubit_count,))
-    initial_gaussian_parameters = np.column_stack(
-        (initial_amplitudes, initial_square_widths, initial_sigmas)).flatten()
+                                           size=(1,))
     # Phases.
     initial_phase_amplitudes = np.random.uniform(low=lower_phase_amplitude,
                                                  high=upper_phase_amplitude,
@@ -409,20 +362,20 @@ def run_optimization(want_gate: np.ndarray):
     # Detunings.
     initial_detunings = np.random.uniform(low=lower_detuning,
                                           high=upper_detuning,
-                                          size=(qubit_count * chunks,))
+                                          size=(1,))
 
     initial_controls = []
     initial_controls = np.concatenate(
-        (initial_gaussian_parameters, initial_phase_parameters,
+        (initial_amplitude, initial_phase_parameters,
          initial_detunings))
 
-    # optimized_result = optimize.minimize(optimization_function,
-    #                                      initial_controls,
-    #                                      args=(want_gate),
-    #                                      bounds=bounds,
-    #                                     #  method="SLSQP")
-    #                                     #  method="trust-constr")
-    #                                      method="Nelder-Mead")
+    optimized_result = optimize.minimize(optimization_function,
+                                         initial_controls,
+                                         args=(want_gate),
+                                         bounds=bounds,
+                                        #  method="SLSQP")
+                                        #  method="trust-constr")
+                                         method="Nelder-Mead")
 
     optimized_result = optimize.dual_annealing(func=optimization_function,
                                                x0=initial_controls,
@@ -433,14 +386,6 @@ def run_optimization(want_gate: np.ndarray):
 ################################################################################################################
 
 qubit_count = 2
-
-################################################## X-180 rotation ##############################################
-
-# # Now let's optimize for an X-rotation
-# x_180_rotation = np.fliplr(np.eye(2**qubit_count))
-# x_180_result = run_optimization(x_180_rotation)
-# # x_180_signal = x_180_result.x
-# # print("final X-180 cost = ", x_180_result.fun, "\n")
 
 ################################################## CZ-Gate #####################################################
 
