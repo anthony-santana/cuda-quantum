@@ -19,7 +19,7 @@ import cudaq
 
 ######################################### Timing Parameters ###################################################
 
-T = 0.25  # total time, T in microseconds. taken from : arxiv.2304.05420
+T = 2.0  # total time, T in microseconds. taken from : arxiv.2304.05420
 global chunks
 chunks = 100  # number of time chunks (samples) contained in our signals
 global dt
@@ -416,17 +416,17 @@ def run_optimization(want_gate: np.ndarray):
         (initial_gaussian_parameters, initial_phase_parameters,
          initial_detunings))
 
-    # optimized_result = optimize.minimize(optimization_function,
-    #                                      initial_controls,
-    #                                      args=(want_gate),
-    #                                      bounds=bounds,
-    #                                     #  method="SLSQP")
-    #                                     #  method="trust-constr")
-    #                                      method="Nelder-Mead")
+    optimized_result = optimize.minimize(optimization_function,
+                                         initial_controls,
+                                         args=(want_gate),
+                                         bounds=bounds,
+                                        #  method="SLSQP")
+                                        #  method="trust-constr")
+                                         method="Nelder-Mead")
 
-    optimized_result = optimize.dual_annealing(func=optimization_function,
-                                               x0=initial_controls,
-                                               bounds=bounds)
+    # optimized_result = optimize.dual_annealing(func=optimization_function,
+    #                                            x0=initial_controls,
+    #                                            bounds=bounds)
     return optimized_result
 
 

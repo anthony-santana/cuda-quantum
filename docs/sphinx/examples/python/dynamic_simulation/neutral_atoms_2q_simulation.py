@@ -14,8 +14,8 @@ from multiprocess import Pool
 
 import cudaq
 
-import cupy as cp
-from cupyx.scipy.linalg import expm
+# import cupy as cp
+# from cupyx.scipy.linalg import expm
 
 # TODO:
 # 1. Speed up certain calculations in parallel
@@ -39,14 +39,20 @@ from cupyx.scipy.linalg import expm
 
 ######################################### Timing Parameters ###################################################
 
-T = 1.25  # total time, T in microseconds.
-dt = 0.25  # time duration of each signal chunk in microseconds.
-chunks = int(T / dt)  # number of time chunks we will solve for
+# T = 0.25  # total time, T in microseconds.
+# dt = 0.25  # time duration of each signal chunk in microseconds.
+# chunks = int(T / dt)  # number of time chunks we will solve for
+
+T = 4.0  # total time, T in microseconds.
+global chunks
+chunks = 30  # number of time chunks (samples) contained in our signals
+global dt
+dt = T / chunks  # time duration of each signal chunk in microseconds.
 
 ################################################################################################################
 
 
-def single_qubit_hamiltonian(qubit, signal_amplitude, phase, detuning):
+def single_qubit_hamiltonian(time, qubit, signal_amplitude, phase, detuning):
     """ 
     Returns the spin hamiltonian for a single term, at a single time step,
     in an array of Rydberg atoms. 
@@ -72,7 +78,8 @@ def single_qubit_hamiltonian(qubit, signal_amplitude, phase, detuning):
     return single_qubit_hamiltonian
 
 
-def hamiltonian(amplitudes: tuple[float],
+def hamiltonian(time: float,
+                amplitudes: tuple[float],
                 phases: tuple[float],
                 detunings: tuple[float],
                 V_ij: float = 1.0) -> np.ndarray:
@@ -107,7 +114,7 @@ def hamiltonian(amplitudes: tuple[float],
         signal_amplitude = amplitudes[qubit]
         phase = phases[qubit]
         detuning = detunings[qubit]
-        hamiltonian += single_qubit_hamiltonian(qubit, signal_amplitude, phase,
+        hamiltonian += single_qubit_hamiltonian(time, qubit, signal_amplitude, phase,
                                                 detuning)
 
     # FIXME: This term doesn't change across time steps so I should
@@ -133,7 +140,7 @@ def hamiltonian(amplitudes: tuple[float],
 def unitary_step(time_step, amplitudes, phases, detunings):
     time = dt * time_step
     U_slice = sp.linalg.expm(-1j * dt *
-                             hamiltonian(amplitudes, phases, detunings))
+                             hamiltonian(time, amplitudes, phases, detunings))
     # print(U_slice)
     return U_slice
 
@@ -324,17 +331,17 @@ def run_optimization(want_gate: np.ndarray):
     #     seed=43210)
     # print(optim_results.converged)
 
-    # optimized_result = optimize.minimize(optimization_function,
-    #                                      initial_controls,
-    #                                      args=(want_gate),
-    #                                      bounds=bounds,
-    #                                     #  method="SLSQP")
-    #                                     #  method="trust-constr")
-    #                                      method="Nelder-Mead")
+    optimized_result = optimize.minimize(optimization_function,
+                                         initial_controls,
+                                         args=(want_gate),
+                                         bounds=bounds,
+                                        #  method="SLSQP")
+                                        #  method="trust-constr")
+                                         method="Nelder-Mead")
 
-    optimized_result = optimize.dual_annealing(func=optimization_function,
-                                               x0=initial_controls,
-                                               bounds=bounds)  #,
+    # optimized_result = optimize.dual_annealing(func=optimization_function,
+    #                                            x0=initial_controls,
+    #                                            bounds=bounds)  #,
     # visit=1.25,
     # no_local_search=True)
     return optimized_result
@@ -369,7 +376,7 @@ def broadcast_individual_operations(operations: list[np.ndarray]):
 
 ################################################################################################################
 
-qubit_count = 3
+qubit_count = 2
 
 ######################################## X-180 rotation of system ##############################################
 
@@ -381,12 +388,21 @@ qubit_count = 3
 
 ########################################## Hadamard operation on system ##########################################
 
-single_hadamard_operation = (1 / np.sqrt(2)) * np.array([[1., 1.], [1., -1.]])
-hadamard_operation = broadcast_single_qubit_operation(single_hadamard_operation,
-                                                      qubit_count)
-hadamard_operation_result = run_optimization(hadamard_operation)
-hadamard_operation_signal = hadamard_operation_result.x
-print("final Hadamard cost = ", hadamard_operation_result.fun, "\n")
+# single_hadamard_operation = (1 / np.sqrt(2)) * np.array([[1., 1.], [1., -1.]])
+# hadamard_operation = broadcast_single_qubit_operation(single_hadamard_operation,
+#                                                       qubit_count)
+# hadamard_operation_result = run_optimization(hadamard_operation)
+# hadamard_operation_signal = hadamard_operation_result.x
+# print("final Hadamard cost = ", hadamard_operation_result.fun, "\n")
+
+################################################## CZ-Gate #####################################################
+
+# Now let's optimize for a CZ gate
+cz_operation = np.array([[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.],
+                         [0., 0., 0., -1.]])
+cz_result = run_optimization(cz_operation)
+cz_signal = cz_result.x
+print("final CZ cost = ", cz_result.fun, "\n")
 
 ########################################## Operations on isolated atoms ##########################################
 
