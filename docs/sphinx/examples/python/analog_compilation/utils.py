@@ -214,6 +214,8 @@ class analog_kernel:
 
         self.qobjects = []
         for term in self.stitched_operators:
+            if (type(term) != cudaq.SpinOperator):
+                pass
             self.qobjects.append(Qobj(np.asarray(term.to_matrix())))
 
         # TODO: Also need to be able to handle coefficients, and time-parameterized
