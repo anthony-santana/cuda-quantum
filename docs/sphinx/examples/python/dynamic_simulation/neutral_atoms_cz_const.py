@@ -16,7 +16,7 @@ import cudaq
 
 ######################################### Timing Parameters ###################################################
 
-T = 0.22 # total time, T in microseconds. taken from : arxiv.2304.05420
+T = 0.22  # total time, T in microseconds. taken from : arxiv.2304.05420
 global chunks
 chunks = 40  # number of time chunks (samples) contained in our signals
 global dt
@@ -25,7 +25,10 @@ dt = T / chunks  # time duration of each signal chunk in microseconds.
 ################################################################################################################
 
 
-def gaussian_square_signal(amplitude, square_sample_count, sigma, number_peaks=1):
+def gaussian_square_signal(amplitude,
+                           square_sample_count,
+                           sigma,
+                           number_peaks=1):
     """ 
     To be more realistic with hardware slew rates, testing a Gaussian
     Square signal that will have more realizable slopes between samples.
@@ -66,8 +69,9 @@ def gaussian_square_signal(amplitude, square_sample_count, sigma, number_peaks=1
 
     def f(x):
         return amplitude * (f_prime(x) - f_prime(-1)) / (1. - f_prime(-1))
-    
-    signals = [f(x) for x in np.arange(start=0.0, stop=signal_sample_count)] * number_peaks
+
+    signals = [f(x) for x in np.arange(start=0.0, stop=signal_sample_count)
+              ] * number_peaks
     return np.ndarray.flatten(np.asarray(signals))
 
 
@@ -128,14 +132,14 @@ def hamiltonian(amplitudes: tuple[float],
     V_ij = interaction_energy_c6 / (atom_distance**6)
 
     # FIXME: Temporary patch while I test out a single global control signal
-    #        instead of one per qubit.   
+    #        instead of one per qubit.
     qubit_count = int(np.log2(gate_to_optimize.shape[0]))
 
     hamiltonian = 0.0
     for qubit in range(qubit_count):
-        signal_amplitude = amplitudes[0]#[qubit]
-        phase = phases[0]#[qubit]
-        detuning = detunings[0]#[qubit]
+        signal_amplitude = amplitudes[0]  #[qubit]
+        phase = phases[0]  #[qubit]
+        detuning = detunings[0]  #[qubit]
         hamiltonian += single_qubit_hamiltonian(qubit, signal_amplitude, phase,
                                                 detuning)
 
@@ -155,8 +159,8 @@ def hamiltonian(amplitudes: tuple[float],
             hamiltonian += (V_ij * basis_n_i(i) * basis_n_j(j))
 
     # FIXME: Temporary patch while I test out a single global control signal
-    #        instead of one per qubit.   
-    qubit_count = 1      
+    #        instead of one per qubit.
+    qubit_count = 1
     return np.asarray(hamiltonian.to_matrix())
 
 
@@ -323,7 +327,9 @@ def run_optimization(want_gate: np.ndarray):
     upper_phase_amplitude = [np.pi]
     # Width of the square top portion.
     lower_phase_square_width = [0.1]
-    upper_phase_square_width = [T]  # can have a square top up to the entire signal duration
+    upper_phase_square_width = [
+        T
+    ]  # can have a square top up to the entire signal duration
     # Sigma bounds.
     lower_phase_sigma = [1.]
     upper_phase_sigma = [2.]  # semi-arbitrarily chosen
@@ -336,15 +342,15 @@ def run_optimization(want_gate: np.ndarray):
     phase_bounds = list(zip(lower_phase_bounds, upper_phase_bounds))
 
     # Detuning bounds.
-    lower_detuning = [0.] # MHz.
-    upper_detuning = [16.33] # MHz.
+    lower_detuning = [0.]  # MHz.
+    upper_detuning = [16.33]  # MHz.
     detuning_bounds = list(zip(lower_detuning, upper_detuning))
     bounds = (amplitude_bounds + phase_bounds + detuning_bounds)
 
     # Just using random parameter values for our initial amplitude.
     initial_amplitude = np.random.uniform(low=lower_amplitude,
-                                           high=upper_amplitude,
-                                           size=(1,))
+                                          high=upper_amplitude,
+                                          size=(1,))
     # Phases.
     initial_phase_amplitudes = np.random.uniform(low=lower_phase_amplitude,
                                                  high=upper_phase_amplitude,
@@ -366,16 +372,16 @@ def run_optimization(want_gate: np.ndarray):
 
     initial_controls = []
     initial_controls = np.concatenate(
-        (initial_amplitude, initial_phase_parameters,
-         initial_detunings))
+        (initial_amplitude, initial_phase_parameters, initial_detunings))
 
-    optimized_result = optimize.minimize(optimization_function,
-                                         initial_controls,
-                                         args=(want_gate),
-                                         bounds=bounds,
-                                        #  method="SLSQP")
-                                        #  method="trust-constr")
-                                         method="Nelder-Mead")
+    optimized_result = optimize.minimize(
+        optimization_function,
+        initial_controls,
+        args=(want_gate),
+        bounds=bounds,
+        #  method="SLSQP")
+        #  method="trust-constr")
+        method="Nelder-Mead")
 
     optimized_result = optimize.dual_annealing(func=optimization_function,
                                                x0=initial_controls,

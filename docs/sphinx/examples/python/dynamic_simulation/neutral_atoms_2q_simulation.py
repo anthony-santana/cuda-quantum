@@ -114,8 +114,8 @@ def hamiltonian(time: float,
         signal_amplitude = amplitudes[qubit]
         phase = phases[qubit]
         detuning = detunings[qubit]
-        hamiltonian += single_qubit_hamiltonian(time, qubit, signal_amplitude, phase,
-                                                detuning)
+        hamiltonian += single_qubit_hamiltonian(time, qubit, signal_amplitude,
+                                                phase, detuning)
 
     # FIXME: This term doesn't change across time steps so I should
     #        really calculate it once and just insert it here every time.
@@ -331,13 +331,14 @@ def run_optimization(want_gate: np.ndarray):
     #     seed=43210)
     # print(optim_results.converged)
 
-    optimized_result = optimize.minimize(optimization_function,
-                                         initial_controls,
-                                         args=(want_gate),
-                                         bounds=bounds,
-                                        #  method="SLSQP")
-                                        #  method="trust-constr")
-                                         method="Nelder-Mead")
+    optimized_result = optimize.minimize(
+        optimization_function,
+        initial_controls,
+        args=(want_gate),
+        bounds=bounds,
+        #  method="SLSQP")
+        #  method="trust-constr")
+        method="Nelder-Mead")
 
     # optimized_result = optimize.dual_annealing(func=optimization_function,
     #                                            x0=initial_controls,
