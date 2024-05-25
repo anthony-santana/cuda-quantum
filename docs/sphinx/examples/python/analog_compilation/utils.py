@@ -66,6 +66,12 @@ class X(operator):
     def __mul__(self, value: float):
         self.operator_term *= value
 
+    def __mul__(self, values: np.ndarray):
+        # FIXME: This will construct in the necessary form
+        # for a QobjEvo as to ensure it builds up a time-dependent
+        # term.
+        pass
+
     def __rmul__(self, value: float):
         self.operator_term *= value
 
@@ -94,6 +100,12 @@ class Y(operator):
 
     def __mul__(self, value: float):
         self.operator_term *= value
+
+    def __mul__(self, values: np.ndarray):
+        # FIXME: This will construct in the necessary form
+        # for a QobjEvo as to ensure it builds up a time-dependent
+        # term.
+        pass
 
     def __rmul__(self, value: float):
         self.operator_term *= value
@@ -124,6 +136,12 @@ class Z(operator):
     def __mul__(self, value: float):
         self.operator_term *= value
 
+    def __mul__(self, values: np.ndarray):
+        # FIXME: This will construct in the necessary form
+        # for a QobjEvo as to ensure it builds up a time-dependent
+        # term.
+        pass
+
     def __rmul__(self, value: float):
         self.operator_term *= value
 
@@ -152,6 +170,12 @@ class I(operator):
 
     def __mul__(self, value):
         self.operator_term *= value
+
+    def __mul__(self, values: np.ndarray):
+        # FIXME: This will construct in the necessary form
+        # for a QobjEvo as to ensure it builds up a time-dependent
+        # term.
+        pass
 
     def __rmul__(self, value):
         self.operator_term *= value
