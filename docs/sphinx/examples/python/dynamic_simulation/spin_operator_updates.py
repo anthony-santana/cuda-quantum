@@ -50,11 +50,11 @@ New operator classes:
 1. Bra-ket algebra. Examples:
       |0_{i}> <1_{i}| ==>  `cudaq::operator::ket::zero(qubit_i) * cudaq::bra::one(qubit_i)`
 
-2. Creation/Annihilation Operators:
-      cudaq::operator::creation(n)
-      cudaq::operator::annihilation(n)
+2. Creation/Annihilation (or Raising/Lowering) Operators:
+      cudaq::operator::creation(n) // ::raising(n)
+      cudaq::operator::annihilation(n) // ::lowering(n)
 
-
+3. Other operators: number, phase, position, momentum, number, squeezing.
 
 
 ```

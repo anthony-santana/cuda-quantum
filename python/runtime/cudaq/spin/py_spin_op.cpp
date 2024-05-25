@@ -104,6 +104,7 @@ void bindSpinOperator(py::module &mod) {
            "Returns a bool indicating if this :class:`SpinOperator` is equal "
            "to the "
            "identity.")
+      .def("project_hilbert_space", &cudaq::spin_op::expandToNQubits, "")
       .def(
           "to_string",
           [](cudaq::spin_op &op, bool print_coefficient) {

@@ -190,11 +190,12 @@ private:
   std::map<pauli, std::string> pauli_to_str{
       {pauli::I, "I"}, {pauli::X, "X"}, {pauli::Y, "Y"}, {pauli::Z, "Z"}};
 
+public:
+
   /// @brief Expand this spin_op binary symplectic representation to
   /// a larger number of qubits.
   void expandToNQubits(const std::size_t nQubits);
-
-public:
+  
   /// @brief The constructor, takes a single term / coefficient pair
   spin_op(std::pair<const spin_op_term, std::complex<double>> &termData);
 
