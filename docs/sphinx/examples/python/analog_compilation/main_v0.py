@@ -9,6 +9,7 @@ import numpy as np
 @cudaq.analog_kernel
 def kernel(waveform: np.ndarray, waveform_function: callable,
            constant_coefficients: list[float]):
+
     constant_coefficients[0] * X(0)
     constant_coefficients[1] * Y(1)
     constant_coefficients[2] * Z(2)
@@ -29,10 +30,11 @@ def kernel(waveform: np.ndarray, waveform_function: callable,
 
 
 # Both test waveform formats just return constant values of 1.0
-test_waveform = 4.20 * np.ones(20)
-test_waveform_function = lambda t: 1.
+test_waveform = 4.0 * np.ones(20)
+test_waveform_function = lambda t: 1.0
 
 result = cudaq.observe(kernel,
+                       time_steps=np.linspace(0.0, 2.0, 20),
                        waveform=test_waveform,
                        waveform_function=test_waveform_function,
                        constant_coefficients=[1.0, 2.0, 3.0],

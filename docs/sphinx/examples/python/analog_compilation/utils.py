@@ -4,11 +4,11 @@ import qutip
 from qutip import Qobj, QobjEvo
 
 import numpy as np
+import functools
 
-# TODO:
-# Write a "kernel" containing analog hamiltonian terms that
-# will build up an underlying QuTip QOBJ.
-
+# Storing the `cudaq.operator`'s that we build up here in this global variable.
+# This is not a great solution, but it prevents me from having to pass extra
+# arguments around to the X/Y/Z/I operators on the mock front end.
 global operators
 operators = []
 
@@ -53,16 +53,9 @@ class Coefficient(Variable):
 cudaq.Coefficient = Coefficient
 
 
-# Empty parent class for kernel-level spin operators.
+# Parent class for the operators that we will use to construct
+# complex, time-dependent hamiltonians.
 class operator:
-    pass
-
-
-cudaq.operator = operator
-
-
-# Define the `X,Y,Z,I` quantum operators
-class X(cudaq.operator):
 
     def __init__(self, qubit: int):
         self.qubit = qubit
@@ -74,13 +67,20 @@ class X(cudaq.operator):
         # member (coefficient) belongs to its own time step.
         self.operator_coefficients = None
 
+    def from_data(self, *args, **kwargs):
+        """
+            *args : the `cudaq.operator`'s that we will be starting from.
+        """
+        pass
+
+
     def __mul__(self, coefficients):
         """ 
         Support:
 
-            `float * X(qubit)`
-            `np.ndarray[time] * X(qubit)`
-            `foo(time) * X(qubit)
+            `float * OPERATOR(qubit)`
+            `np.ndarray[time] * OPERATOR(qubit)`
+            `foo(time) * OPERATOR(qubit)
          
         This is needed in one function because python doesn't do
         a great job of rerouting overload calls if the function
@@ -90,12 +90,26 @@ class X(cudaq.operator):
         which should really be `coefficient` if it's only a float,
         and `coefficients` if it's a vector or function.
         """
-        if (type(coefficients) != float):
+        incoming_type = type(coefficients)
+        # If someone passed us a list of coefficients in time, or a time-dependent
+        # coefficient function, we set the member variable.
+        same_types = [X, Y, Z, I]
+        if incoming_type != float and incoming_type not in same_types:
             self.operator_coefficients = coefficients
+        # If it's another operator, multiply them at the `cudaq::spin` level.
+        elif (incoming_type in same_types):
+            print(
+                "WARNING: Same type operation that may not handle coefficients properly.\n"
+            )
+            self.operator_term *= coefficients.operator_term
+            # FIXME: Collapse that operator into self and remove the other.
+            # operators.remove(coefficients.operator_term)
+            return self  # FIXME return operator(qubit, )
+        # Otherwise, it's just a conventional coefficient, so multiply through.
         else:
             self.operator_term *= coefficients
 
-    # FIXME: There is this weird bug in numpy where, if you use __rmul__
+    # NOTE: There is this weird bug in numpy where, if you use __rmul__
     # between a numpy array and the cudaq.operator: `np.array([1,2,3]) * X(qubit)`,
     # it will use the `numpy.array.__mul__()` method instead of our rmul, giving us a
     # bug. If I jack this `__array_priority__` variable up, however, it solves the
@@ -105,149 +119,76 @@ class X(cudaq.operator):
     def __rmul__(self, coefficients):
         self.__mul__(coefficients)
 
-    def __add__(self, value: float):
-        self.operator_term += value
+    def __add__(self, value):
+        incoming_type = type(value)
+        same_types = [X, Y, Z, I]
+        if (incoming_type in same_types):
+            print(
+                "WARNING: Same type operation that may not handle coefficients properly.\n"
+            )
+            self.operator_term += value.operator_term
 
-    def __radd__(self, value: float):
-        self.operator_term += value
+        else:
+            self.operator_term += value
 
-    def __sub__(self, value: float):
-        self.operator_term -= value
+    def __radd__(self, value):
+        incoming_type = type(value)
+        same_types = [X, Y, Z, I]
+        if (incoming_type in same_types):
+            print(
+                "WARNING: Same type operation that may not handle coefficients properly.\n"
+            )
+            value.operator_term += self.operator_term
+        else:
+            value += self.operator_term
 
-    def __rsub__(self, value: float):
-        self.operator_term -= value
+    def __sub__(self, value):
+        incoming_type = type(value)
+        same_types = [X, Y, Z, I]
+        if (incoming_type in same_types):
+            print(
+                "WARNING: Same type operation that may not handle coefficients properly.\n"
+            )
+            self.operator_term -= value.operator_term
+        else:
+            self.operator_term -= value
+
+    def __rsub__(self, value):
+        incoming_type = type(value)
+        same_types = [X, Y, Z, I]
+        if (incoming_type in same_types):
+            print(
+                "WARNING: Same type operation that may not handle coefficients properly.\n"
+            )
+            value.operator_term -= self.operator_term
+        else:
+            value -= self.operator_term
 
 
-cudaq.operator.X = X
+cudaq.operator = operator
+
+# Define the `X,Y,Z,I` quantum operators.
+
+
+class X(cudaq.operator):
+    pass
 
 
 class Y(cudaq.operator):
-
-    def __init__(self, qubit: int):
-        self.qubit = qubit
-        self.operator_term = cudaq.spin.y(qubit)
-        operators.append(self)
-        self.operator_coefficients = None
-
-    def __mul__(self, coefficients):
-        """ 
-        Support:
-
-            `float * Y(qubit)`
-            `np.ndarray[time] * Y(qubit)`
-            `foo(time) * Y(qubit)
-        """
-        if (type(coefficients) != float):
-            self.operator_coefficients = coefficients
-        else:
-            self.operator_term *= coefficients
-
-    __array_priority__ = 10000
-
-    def __rmul__(self, coefficients):
-        self.__mul__(coefficients)
-
-    def __add__(self, value: float):
-        self.operator_term += value
-
-    def __radd__(self, value: float):
-        self.operator_term += value
-
-    def __sub__(self, value: float):
-        self.operator_term -= value
-
-    def __rsub__(self, value: float):
-        self.operator_term -= value
-
-
-cudaq.operator.Y = Y
+    pass
 
 
 class Z(cudaq.operator):
-
-    def __init__(self, qubit: int):
-        self.qubit = qubit
-        self.operator_term = cudaq.spin.z(qubit)
-        operators.append(self)
-        self.operator_coefficients = None
-
-    def __mul__(self, coefficients):
-        """ 
-        Support:
-
-            `float * Z(qubit)`
-            `np.ndarray[time] * Z(qubit)`
-            `foo(time) * Z(qubit)
-        """
-        if (type(coefficients) != float):
-            self.operator_coefficients = coefficients
-        else:
-            self.operator_term *= coefficients
-
-    __array_priority__ = 10000
-
-    def __rmul__(self, coefficients):
-        self.__mul__(coefficients)
-
-    def __add__(self, value: float):
-        self.operator_term += value
-
-    def __radd__(self, value: float):
-        self.operator_term += value
-
-    def __sub__(self, value: float):
-        self.operator_term -= value
-
-    def __rsub__(self, value: float):
-        self.operator_term -= value
-
-
-cudaq.operator.Z = Z
+    pass
 
 
 class I(cudaq.operator):
-
-    def __init__(self, qubit: int):
-        self.qubit = qubit
-        self.operator_term = cudaq.spin.i(qubit)
-        operators.append(self)
-        self.operator_coefficients = None
-
-    def __mul__(self, coefficients):
-        """ 
-        Support:
-
-            `float * ID(qubit)`
-            `np.ndarray[time] * ID(qubit)`
-            `foo(time) * ID(qubit)
-         
-        This is needed in one function because python doesn't do
-        a great job of rerouting overload calls if the function
-        signatures have the similar argument structures.
-        """
-        if (type(coefficients) != float):
-            self.operator_coefficients = coefficients
-        else:
-            self.operator_term *= coefficients
-
-    __array_priority__ = 10000
-
-    def __rmul__(self, coefficients):
-        self.__mul__(coefficients)
-
-    def __add__(self, value):
-        self.operator_term += value
-
-    def __radd__(self, value):
-        self.operator_term += value
-
-    def __sub__(self, value):
-        self.operator_term -= value
-
-    def __rsub__(self, value):
-        self.operator_term -= value
+    pass
 
 
+cudaq.operator.X = X
+cudaq.operator.Y = Y
+cudaq.operator.Z = Z
 cudaq.operator.I = I
 
 
@@ -261,7 +202,7 @@ class analog_kernel:
     def __call__(self, *args, **kwargs):
         return self.kernel_function(*args, **kwargs)
 
-    def __compile__(self, *args, **kwargs):
+    def __compile__(self, time_steps: np.ndarray, *args, **kwargs):
         """ 
         Lowers the analog kernel to a list of qutip Qobj's
         containing the parameterized coefficients.
@@ -289,10 +230,22 @@ class analog_kernel:
             # pass those along separately while building up our list of
             # qobjects.
             if term.operator_coefficients is not None:
-                self.qobjects.append([
-                    Qobj(np.asarray(term.operator_term.to_matrix())),
-                    term.operator_coefficients
-                ])
+                # If the coefficient was a function, let's just create
+                # the array of samples upfront ourselves to save the
+                # overhead.
+                if (type(term.operator_coefficients) != np.ndarray):
+                    coefficients = np.array([
+                        term.operator_coefficients(time) for time in time_steps
+                    ])
+                    self.qobjects.append([
+                        Qobj(np.asarray(term.operator_term.to_matrix())),
+                        coefficients
+                    ])
+                else:
+                    self.qobjects.append([
+                        Qobj(np.asarray(term.operator_term.to_matrix())),
+                        term.operator_coefficients
+                    ])
             # Otherwise, if we just had a plain old spin term with the constant
             # coefficient already attached to it, just append that Qobj directly.
             else:
@@ -304,7 +257,7 @@ cudaq.analog_kernel = analog_kernel
 
 
 # Updated observe function to handle the analog kernel.
-def observe(kernel, *args, debug=False, **kwargs):
+def observe(kernel, time_steps, *args, verbose=False, **kwargs):
     """
     FIXME: Extend to sequential waveforms.
 
@@ -316,7 +269,12 @@ def observe(kernel, *args, debug=False, **kwargs):
     ```
     # Example with 3 sequential waveforms:
 
-    global_times = [np.arange(0,T_1,steps=dt), np.arange(0,T_2,steps=dt), np.arange(0,T_3,steps=dt)]
+    global_times = [
+        np.arange(0,T_1,steps=dt), 
+        np.arange(0,T_2,steps=dt), 
+        np.arange(0,T_3,steps=dt)
+    ]
+    # Our first initial state for the complete workflow is `|0>`
     psi = qutip.basis(2**(kernel.qubit_count), 0)
     for time in global_times:
         evolved_state = qutip.mesolve(..., psi, time, ...)
@@ -329,10 +287,10 @@ def observe(kernel, *args, debug=False, **kwargs):
 
     """
     kernel.__call__(*args, **kwargs)
-    kernel.__compile__(*args, **kwargs)
+    kernel.__compile__(time_steps, *args, **kwargs)
 
     # Just a temporary flag.
-    if (debug):
+    if (verbose):
         for obj in kernel.qobjects:
             print(obj)
             print("\n")
@@ -343,33 +301,25 @@ def observe(kernel, *args, debug=False, **kwargs):
     #   `cudaq.set_target('qutip-mesolve')`
     #   ...
 
-    # FIXME: Think of nice ways that a user could pass along the
-    # timing information for this call.
-    # Maybe grab this from the custom `cudaq.Time` type.
-    times = np.linspace(0.0, 2.0, 20)
     # FIXME: Just starting from the 0-state always for now.
     psi_initial = qutip.basis(2**(kernel.qubit_count), 0)
-    # FIXME: Use `mesolve`.
-    # FIXME: Not actually using the `self.qobjects` on the analog kernel,
-    #        as I need to reformat it before passing off. Fix this when I
-    #        change solvers and carry around coefficient functions.
-    # full_hamiltonian = qutip.Qobj(
-    #     np.asarray(kernel.stitched_operators.to_matrix()))
 
-    # # Save off the state vectors during simulation.
+    # Save off the state vectors during simulation.
     solver_options = {
         "store_final_state": True,
-        "store_states": False,
-        "progress_bar": "enhanced"
+        "store_states": False
+        # "progress_bar": "enhanced"
     }
     # FIXME: Just hard-coding to return `<psi | Z | psi>`.
     expectation_operators = [
         cudaq.spin.z(qubit) for qubit in range(kernel.qubit_count)
     ]
     sigma_z = Qobj(np.asarray(sum(expectation_operators).to_matrix()))
+
+    # Execute the simulation on the Qutip backend.
     result = qutip.sesolve(kernel.qobjects,
                            psi_initial,
-                           times,
+                           time_steps,
                            e_ops=sigma_z,
                            options=solver_options)
 
