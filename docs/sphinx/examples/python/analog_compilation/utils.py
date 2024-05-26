@@ -57,22 +57,53 @@ cudaq.Coefficient = Coefficient
 # complex, time-dependent hamiltonians.
 class operator:
 
-    def __init__(self, qubit: int):
-        self.qubit = qubit
-        self.operator_term = cudaq.spin.x(qubit)
-        operators.append(self)
-        # Store any coefficients that will be time-dependent; e.g, we don't
-        # just have a single value for them. This may either be a function
-        # that is called at each time step, or an array where each respective
-        # member (coefficient) belongs to its own time step.
+    def __init__(self, qubit: int, term: str = None, start_empty=False):
+        if not start_empty:
+            self.qubit = qubit
+            # Instead of overloading this constructor for each
+            # child class, I just use a hacky f-string method.
+            exec(f"self.operator_term = cudaq.spin.{term}(qubit)")
+            operators.append(self)
+            # Store any coefficients that will be time-dependent; e.g, we don't
+            # just have a single value for them. This may either be a function
+            # that is called at each time step, or an array where each respective
+            # member (coefficient) belongs to its own time step.
+            self.operator_coefficients = None
+        else:
+            # Used in conjunction with the below `from_other_operations` method.
+            # Code this ugly wouldn't exist in C++ because I'd just be able to
+            # overload the constructor there :-)
+            self.qubit = qubit
+            self.operator_term = None
+            self.operator_coefficients = None
+
+    def from_other_operations(self,
+                              other_operations=[],
+                              arithmetic_op="__mul__"):
+        """
+        *args : The `cudaq.operator`'s that we will be starting from. We've already
+                asserted that all of the previous operators are on the same qubit.
+        arithmetic_op : The binary operator used to merge the different operation data
+                        together.
+        """
+        self.qubit = other_operations[0].qubit
+        term_0 = other_operations[0].operator_term
+        term_1 = other_operations[1].operator_term
+        execution_string = f"self.operator_term = term_0.{arithmetic_op}(term_1)"
+        exec(execution_string)
+        # Since the other operations should've been made on the spot
+        # in the analog kernel, they shouldn't have taken on any coefficients
+        # yet.
         self.operator_coefficients = None
 
-    def from_data(self, *args, **kwargs):
-        """
-            *args : the `cudaq.operator`'s that we will be starting from.
-        """
-        pass
+        # Will have to remove the original operators that were spun up and added
+        # to the operators list, as they were constructed at the same time as we
+        # were performing the arithmetic operation that calls this constructor.
+        for operation in other_operations:
+            operators.remove(operation)
 
+        # Add this operator in their place.
+        operators.append(self)
 
     def __mul__(self, coefficients):
         """ 
@@ -101,10 +132,11 @@ class operator:
             print(
                 "WARNING: Same type operation that may not handle coefficients properly.\n"
             )
-            self.operator_term *= coefficients.operator_term
-            # FIXME: Collapse that operator into self and remove the other.
-            # operators.remove(coefficients.operator_term)
-            return self  # FIXME return operator(qubit, )
+            assert (self.qubit == coefficients.qubit)
+            new_operator = cudaq.operator(self.qubit, start_empty=True)
+            new_operator.from_other_operations(
+                other_operations=[self, coefficients])
+            return new_operator
         # Otherwise, it's just a conventional coefficient, so multiply through.
         else:
             self.operator_term *= coefficients
@@ -126,8 +158,11 @@ class operator:
             print(
                 "WARNING: Same type operation that may not handle coefficients properly.\n"
             )
-            self.operator_term += value.operator_term
-
+            assert (self.qubit == value.qubit)
+            new_operator = cudaq.operator(self.qubit, start_empty=True)
+            new_operator.from_other_operations(other_operations=[self, value],
+                                               arithmetic_op="__add__")
+            return new_operator
         else:
             self.operator_term += value
 
@@ -138,7 +173,11 @@ class operator:
             print(
                 "WARNING: Same type operation that may not handle coefficients properly.\n"
             )
-            value.operator_term += self.operator_term
+            assert (self.qubit == value.qubit)
+            new_operator = cudaq.operator(self.qubit, start_empty=True)
+            new_operator.from_other_operations(other_operations=[self, value],
+                                               arithmetic_op="__radd__")
+            return new_operator
         else:
             value += self.operator_term
 
@@ -149,7 +188,11 @@ class operator:
             print(
                 "WARNING: Same type operation that may not handle coefficients properly.\n"
             )
-            self.operator_term -= value.operator_term
+            assert (self.qubit == value.qubit)
+            new_operator = cudaq.operator(self.qubit, start_empty=True)
+            new_operator.from_other_operations(other_operations=[self, value],
+                                               arithmetic_op="__sub__")
+            return new_operator
         else:
             self.operator_term -= value
 
@@ -160,7 +203,11 @@ class operator:
             print(
                 "WARNING: Same type operation that may not handle coefficients properly.\n"
             )
-            value.operator_term -= self.operator_term
+            assert (self.qubit == value.qubit)
+            new_operator = cudaq.operator(self.qubit, start_empty=True)
+            new_operator.from_other_operations(other_operations=[self, value],
+                                               arithmetic_op="__rsub__")
+            return new_operator
         else:
             value -= self.operator_term
 
@@ -171,19 +218,27 @@ cudaq.operator = operator
 
 
 class X(cudaq.operator):
-    pass
+
+    def __init__(self, qubit: int, start_empty=False):
+        super(X, self).__init__(qubit, term="x", start_empty=False)
 
 
 class Y(cudaq.operator):
-    pass
+
+    def __init__(self, qubit: int, start_empty=False):
+        super(Y, self).__init__(qubit, term="y", start_empty=False)
 
 
 class Z(cudaq.operator):
-    pass
+
+    def __init__(self, qubit: int, start_empty=False):
+        super(Z, self).__init__(qubit, term="z", start_empty=False)
 
 
 class I(cudaq.operator):
-    pass
+
+    def __init__(self, qubit: int, start_empty=False):
+        super(I, self).__init__(qubit, term="i", start_empty=False)
 
 
 cudaq.operator.X = X
@@ -252,7 +307,6 @@ class analog_kernel:
                 self.qobjects.append(
                     Qobj(np.asarray(term.operator_term.to_matrix())))
 
-
 cudaq.analog_kernel = analog_kernel
 
 
@@ -301,7 +355,7 @@ def observe(kernel, time_steps, *args, verbose=False, **kwargs):
     #   `cudaq.set_target('qutip-mesolve')`
     #   ...
 
-    # FIXME: Just starting from the 0-state always for now.
+    # FIXME: Always starting from the 0-state for now.
     psi_initial = qutip.basis(2**(kernel.qubit_count), 0)
 
     # Save off the state vectors during simulation.
@@ -323,9 +377,12 @@ def observe(kernel, time_steps, *args, verbose=False, **kwargs):
                            e_ops=sigma_z,
                            options=solver_options)
 
-    print(f"expectation values = {result.expect}\n")
-    print(f"psi_final = {result.final_state}\n")
-    # print(f"stats = {result.stats}\n")
+    if (verbose):
+        print(f"expectation values = {result.expect}\n")
+        print(f"psi_final = {result.final_state}\n")
+        # print(f"stats = {result.stats}\n")
+
+    return True
 
 
 cudaq.observe = observe

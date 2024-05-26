@@ -1,3 +1,9 @@
+# This presents an example of defining a time-independent
+# spin hamiltonian within an analog kernel, then "lowering"
+# from the CUDA-Q representation to Qutip data-types.
+# The qutip `SESolver` is then used as the target simulator
+# for the new analog `cudaq::observe` overload.
+
 import cudaq
 from utils import *
 
