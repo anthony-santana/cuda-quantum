@@ -9,8 +9,6 @@ from utils import *
 
 import numpy as np
 
-# cudaq.SpinOperator.random(qubit_count, term_count)
-
 
 @cudaq.analog_kernel
 def kernel(waveform: np.ndarray, waveform_function: callable,
@@ -36,12 +34,13 @@ def kernel(waveform: np.ndarray, waveform_function: callable,
 
 
 # Both test waveform formats just return constant values of 1.0
-test_waveform = 4.0 * np.ones(20)
-test_waveform_function = lambda t: 1.0
+waveform = np.ones(20)
+waveform_function = lambda t: 1.0
+constants = [1.0, 2.0, 3.0]
 
 result = cudaq.observe(kernel,
                        time_steps=np.linspace(0.0, 2.0, 20),
-                       waveform=test_waveform,
-                       waveform_function=test_waveform_function,
-                       constant_coefficients=[1.0, 2.0, 3.0],
-                       debug=True)
+                       waveform=waveform,
+                       waveform_function=waveform_function,
+                       constant_coefficients=constants,
+                       verbose=True)

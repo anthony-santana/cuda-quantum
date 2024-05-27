@@ -1,56 +1,13 @@
 import cudaq
 
 import qutip
-from qutip import Qobj, QobjEvo
-
 import numpy as np
-import functools
 
 # Storing the `cudaq.operator`'s that we build up here in this global variable.
 # This is not a great solution, but it prevents me from having to pass extra
 # arguments around to the X/Y/Z/I operators on the mock front end.
 global operators
 operators = []
-
-
-# Variables used in the construction of parameterized Hamiltonian
-# operators.
-class Variable:
-    pass
-
-
-cudaq.Variable = Variable
-
-
-class Time(Variable):
-
-    def __init__(self, *args, **kwargs):
-        # TODO: Add member variables for keeping track of timing information:
-        # (start_time, stop_time, dt)
-        self.sample_times = None
-
-    def set_system_sample_times(self, times: np.ndarray):
-        self.sample_times = times
-
-    def __call__(self, *args, **kwargs):
-        # FIXME
-        return 1.0
-
-
-cudaq.Time = Time
-
-
-class Coefficient(Variable):
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __call__(self, *args, **kwargs):
-        # FIXME
-        return 1.0
-
-
-cudaq.Coefficient = Coefficient
 
 
 # Parent class for the operators that we will use to construct
@@ -72,7 +29,8 @@ class operator:
         else:
             # Used in conjunction with the below `from_other_operations` method.
             # Code this ugly wouldn't exist in C++ because I'd just be able to
-            # overload the constructor there :-)
+            # overload the constructor there and not have to use this `start_empty`
+            # function argument :-)
             self.qubit = qubit
             self.operator_term = None
             self.operator_coefficients = None
@@ -81,11 +39,18 @@ class operator:
                               other_operations=[],
                               arithmetic_op="__mul__"):
         """
+        When someone does arithmetic between two operators in their kernel,
+        we need to merge the joined `cudaq.SpinOperator` into one `cudaq.operator`.
+        This function allows you to pass those other operations (just 2 for right now)
+        in to the operator.
+
+
         *args : The `cudaq.operator`'s that we will be starting from. We've already
                 asserted that all of the previous operators are on the same qubit.
         arithmetic_op : The binary operator used to merge the different operation data
                         together.
         """
+        assert len(other_operations) == 2
         self.qubit = other_operations[0].qubit
         term_0 = other_operations[0].operator_term
         term_1 = other_operations[1].operator_term
@@ -115,11 +80,12 @@ class operator:
          
         This is needed in one function because python doesn't do
         a great job of rerouting overload calls if the function
-        signatures have the similar argument structures.
+        signatures have similar argument structures.
 
-        This leads to the undesirable variable name, `coefficients`,
-        which should really be `coefficient` if it's only a float,
-        and `coefficients` if it's a vector or function.
+        This leads, however, to the undesirable variable name, 
+        `coefficients`,  which should really be `coefficient` if 
+        it's only a float, `coefficients` if it's a vector
+        or function, and `other` if it's another `cudaq.operator`.
         """
         incoming_type = type(coefficients)
         # If someone passed us a list of coefficients in time, or a time-dependent
@@ -129,9 +95,6 @@ class operator:
             self.operator_coefficients = coefficients
         # If it's another operator, multiply them at the `cudaq::spin` level.
         elif (incoming_type in same_types):
-            print(
-                "WARNING: Same type operation that may not handle coefficients properly.\n"
-            )
             assert (self.qubit == coefficients.qubit)
             new_operator = cudaq.operator(self.qubit, start_empty=True)
             new_operator.from_other_operations(
@@ -155,9 +118,6 @@ class operator:
         incoming_type = type(value)
         same_types = [X, Y, Z, I]
         if (incoming_type in same_types):
-            print(
-                "WARNING: Same type operation that may not handle coefficients properly.\n"
-            )
             assert (self.qubit == value.qubit)
             new_operator = cudaq.operator(self.qubit, start_empty=True)
             new_operator.from_other_operations(other_operations=[self, value],
@@ -170,9 +130,6 @@ class operator:
         incoming_type = type(value)
         same_types = [X, Y, Z, I]
         if (incoming_type in same_types):
-            print(
-                "WARNING: Same type operation that may not handle coefficients properly.\n"
-            )
             assert (self.qubit == value.qubit)
             new_operator = cudaq.operator(self.qubit, start_empty=True)
             new_operator.from_other_operations(other_operations=[self, value],
@@ -185,9 +142,6 @@ class operator:
         incoming_type = type(value)
         same_types = [X, Y, Z, I]
         if (incoming_type in same_types):
-            print(
-                "WARNING: Same type operation that may not handle coefficients properly.\n"
-            )
             assert (self.qubit == value.qubit)
             new_operator = cudaq.operator(self.qubit, start_empty=True)
             new_operator.from_other_operations(other_operations=[self, value],
@@ -200,9 +154,6 @@ class operator:
         incoming_type = type(value)
         same_types = [X, Y, Z, I]
         if (incoming_type in same_types):
-            print(
-                "WARNING: Same type operation that may not handle coefficients properly.\n"
-            )
             assert (self.qubit == value.qubit)
             new_operator = cudaq.operator(self.qubit, start_empty=True)
             new_operator.from_other_operations(other_operations=[self, value],
@@ -247,12 +198,32 @@ cudaq.operator.Z = Z
 cudaq.operator.I = I
 
 
+def gate_fidelity(want_gate, got_gate):
+    """
+    Returns the overlap between the desired gate and the
+    evolved gate. A value of 0.0 represents no overlap 
+    and 1.0 represents perfect overlap.
+
+    F = (1/(d**2)) * | tr(U_want^dag * U_got) | **2
+
+    where d is the dimension of our gate
+    """
+    fidelity = (1 / want_gate.size) * (np.abs(
+        np.trace(np.dot(np.conj(want_gate).T, got_gate)))**2)
+    return fidelity
+
+
+cudaq.operator.gate_fidelity = gate_fidelity
+
+
 # Analog kernel decorator -- akin to the `@cudaq.kernel` decorator.
 class analog_kernel:
 
     def __init__(self, kernel_function: callable):
         self.kernel_function = kernel_function
         self.qubit_count = None
+        # TODO: might need a flag like this for re-compiling
+        # self.already_initialized = True
 
     def __call__(self, *args, **kwargs):
         return self.kernel_function(*args, **kwargs)
@@ -293,19 +264,23 @@ class analog_kernel:
                         term.operator_coefficients(time) for time in time_steps
                     ])
                     self.qobjects.append([
-                        Qobj(np.asarray(term.operator_term.to_matrix())),
+                        qutip.Qobj(np.asarray(term.operator_term.to_matrix())),
                         coefficients
                     ])
                 else:
                     self.qobjects.append([
-                        Qobj(np.asarray(term.operator_term.to_matrix())),
+                        qutip.Qobj(np.asarray(term.operator_term.to_matrix())),
                         term.operator_coefficients
                     ])
             # Otherwise, if we just had a plain old spin term with the constant
             # coefficient already attached to it, just append that Qobj directly.
             else:
                 self.qobjects.append(
-                    Qobj(np.asarray(term.operator_term.to_matrix())))
+                    qutip.Qobj(np.asarray(term.operator_term.to_matrix())))
+
+        # TODO:
+        # def __recompile__(): pass
+
 
 cudaq.analog_kernel = analog_kernel
 
@@ -356,48 +331,130 @@ def observe(kernel, time_steps, *args, verbose=False, **kwargs):
     #   ...
 
     # FIXME: Always starting from the 0-state for now.
-    psi_initial = qutip.basis(2**(kernel.qubit_count), 0)
+    hilbert_space_size = 2**(kernel.qubit_count)
+    psi_initial = qutip.basis(hilbert_space_size, 0)
 
     # Save off the state vectors during simulation.
     solver_options = {
         "store_final_state": True,
-        "store_states": False
+        "store_states": False,
+        # "nsteps": 5000,
         # "progress_bar": "enhanced"
     }
     # FIXME: Just hard-coding to return `<psi | Z | psi>`.
     expectation_operators = [
         cudaq.spin.z(qubit) for qubit in range(kernel.qubit_count)
     ]
-    sigma_z = Qobj(np.asarray(sum(expectation_operators).to_matrix()))
+    sigma_z = qutip.Qobj(np.asarray(sum(expectation_operators).to_matrix()))
 
     # Execute the simulation on the Qutip backend.
-    result = qutip.sesolve(kernel.qobjects,
-                           psi_initial,
-                           time_steps,
+    result = qutip.sesolve(H=kernel.qobjects,
+                           rho0=psi_initial,
+                           tlist=time_steps,
                            e_ops=sigma_z,
                            options=solver_options)
 
     if (verbose):
         print(f"expectation values = {result.expect}\n")
         print(f"psi_final = {result.final_state}\n")
-        # print(f"stats = {result.stats}\n")
 
-    return True
+    # Return the expectation value with respect to Z.
+    return result.expect[0][-1]
 
 
 cudaq.observe = observe
 
 
 # Returns the measured distribution after simulation.
-def sample(kernel, *args, debug=False, **kwargs):
-    pass
+def sample(kernel, time_steps, *args, verbose=False, **kwargs):
+    kernel.__call__(*args, **kwargs)
+    kernel.__compile__(time_steps, *args, **kwargs)
+
+    # Just a temporary flag.
+    if (verbose):
+        for obj in kernel.qobjects:
+            print(obj)
+            print("\n")
+
+    # Save off the state vectors during simulation.
+    solver_options = {
+        "store_final_state": True,
+        "store_states": False,
+        "nsteps": 1000,
+        # "progress_bar": "enhanced"
+    }
+
+    hilbert_space_size = 2**(kernel.qubit_count)
+    rho0 = qutip.Qobj(np.eye(hilbert_space_size))
+    try:
+        result = qutip.sesolve(H=kernel.qobjects,
+                               psi0=rho0,
+                               tlist=time_steps,
+                               options=solver_options)
+    except:
+        try:
+            solver_options = {
+                "store_final_state": True,
+                "store_states": False,
+                "nsteps": 2500,
+            }
+            result = qutip.sesolve(H=kernel.qobjects,
+                                   psi0=rho0,
+                                   tlist=time_steps,
+                                   options=solver_options)
+        except:
+            try:
+                solver_options = {
+                    "store_final_state": True,
+                    "store_states": False,
+                    "nsteps": 5000,
+                }
+                result = qutip.sesolve(H=kernel.qobjects,
+                                       psi0=rho0,
+                                       tlist=time_steps,
+                                       options=solver_options)
+            except:
+                try:
+                    solver_options = {
+                        "store_final_state": True,
+                        "store_states": False,
+                        "nsteps": 10000,
+                    }
+                    result = qutip.sesolve(H=kernel.qobjects,
+                                           psi0=rho0,
+                                           tlist=time_steps,
+                                           options=solver_options)
+                except:
+                    try:
+                        solver_options = {
+                            "store_final_state": True,
+                            "store_states": False,
+                            "nsteps": 20000,
+                        }
+                        result = qutip.sesolve(H=kernel.qobjects,
+                                               psi0=rho0,
+                                               tlist=time_steps,
+                                               options=solver_options)
+                    except:
+                        solver_options = {
+                            "store_final_state": True,
+                            "store_states": False,
+                            "nsteps": 40000,
+                        }
+                        result = qutip.sesolve(H=kernel.qobjects,
+                                               psi0=rho0,
+                                               tlist=time_steps,
+                                               options=solver_options)
+
+    # Return the evolution propagator at time T: `U(T)`
+    return np.asarray(result.final_state.full())
 
 
 cudaq.sample = sample
 
 
 # Returns the final state vector from simulation.
-def get_state(kernel, *args, debug=False, **kwargs):
+def get_state(kernel, time_steps, *args, verbose=False, **kwargs):
     pass
 
 
