@@ -386,6 +386,13 @@ def sample(kernel, time_steps, *args, verbose=False, **kwargs):
 
     hilbert_space_size = 2**(kernel.qubit_count)
     rho0 = qutip.Qobj(np.eye(hilbert_space_size))
+    # FIXME: Once every ~500 runs or so, we generate a
+    # set of parameters that break the underlying scipy
+    # optimizer from QuTip. The solution is to increase
+    # the number of steps for the optimizer, but keeping the
+    # steps this high would be super inneficient for the other
+    # ~499 iterations. So we just keep trying with iteratively
+    # more iterations until it works.
     try:
         result = qutip.sesolve(H=kernel.qobjects,
                                psi0=rho0,
