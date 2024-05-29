@@ -38,7 +38,7 @@ if (CUDA_FOUND)
     PRIVATE .)
 
   target_link_libraries(${LIBRARY_NAME}
-    PUBLIC dl cudaq-spin cudaq-common cudaq-nlopt cudaq-ensmallen
+    PUBLIC dl cudaq-spin cudaq-operators cudaq-common cudaq-nlopt cudaq-ensmallen
     PRIVATE nvqir fmt::fmt-header-only CUDA::cudart_static)
 
   target_compile_definitions(${LIBRARY_NAME} PRIVATE CUDAQ_HAS_CUDA)
@@ -50,7 +50,7 @@ else()
     PRIVATE .)
 
   target_link_libraries(${LIBRARY_NAME}
-    PUBLIC dl cudaq-spin cudaq-common cudaq-nlopt cudaq-ensmallen
+    PUBLIC dl cudaq-spin cudaq-operators cudaq-common cudaq-nlopt cudaq-ensmallen
     PRIVATE nvqir fmt::fmt-header-only)
 endif()
 
@@ -59,6 +59,7 @@ add_subdirectory(algorithms)
 add_subdirectory(platform)
 add_subdirectory(builder)
 add_subdirectory(domains)
+add_subdirectory(operators)
 
 install(TARGETS ${LIBRARY_NAME} EXPORT cudaq-targets DESTINATION lib)
 
