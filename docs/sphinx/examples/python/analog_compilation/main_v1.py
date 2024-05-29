@@ -21,14 +21,20 @@ def custom_envelope_function_y(time: float):
 
 @cudaq.analog_kernel
 def kernel(waveform_x: callable, waveform_y: callable):
+
+    hamiltonian = cudaq.Hamiltonian(2)
+
     # Build up the constant portion of the Hamiltonian:
     arbitrary_frequency = 1.0
-    (arbitrary_frequency / 2.) * (I(0) - Z(0))
+    hamiltonian += (arbitrary_frequency / 2.) * (I(0) - Z(0))
 
     # Now let's build up the control portion of the
     # Hamiltonian:
-    waveform_x * X(0)
-    waveform_y * Y(0)
+    hamiltonian += waveform_x * X(0)
+    hamiltonian += waveform_y * Y(0)
+
+    hamiltonian += waveform_x_ * X(0)
+    hamiltonian += waveform_y_ * Y(0)
 
     # NOTE:
     # You could imagine another sequential waveform that

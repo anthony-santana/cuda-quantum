@@ -29,14 +29,16 @@ global_time_series = np.linspace(0.0, 10.0, 100)
 
 @cudaq.analog_kernel
 def kernel(waveform_x: np.ndarray, waveform_y: np.ndarray):
+    hamiltonian = cudaq.Hamiltonian(qubit_count = 1)
+
     # Build up the constant portion of the Hamiltonian:
     arbitrary_frequency = 1.0
-    (arbitrary_frequency / 2.) * (I(0) - Z(0))
+    hamiltonian += (arbitrary_frequency / 2.) * (I(0) - Z(0))
 
     # Now let's build up the control portion of the
     # Hamiltonian:
-    waveform_x * X(0)
-    waveform_y * Y(0)
+    hamiltonian += waveform_x * X(0)
+    hamiltonian += waveform_y * Y(0)
 
 
 def objective_function(x):

@@ -13,7 +13,8 @@ import numpy as np
 
 @cudaq.analog_kernel
 def kernel():
-    (2 * np.pi * 0.1) * X(0)
+    hamiltonian = cudaq.Hamiltonian(qubit_count=1)
+    hamiltonian += (2 * np.pi * 0.1) * X(0)
 
 
 result = cudaq.observe(kernel,

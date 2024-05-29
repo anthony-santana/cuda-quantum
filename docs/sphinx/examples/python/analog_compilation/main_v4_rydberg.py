@@ -6,23 +6,14 @@ import numpy as np
 
 from scipy import optimize
 
-# FIXME:
-# Most important issue is that I'm not actually recompiling
-# each time I generate new coefficients. I'm actually
-# starting everything from scratch again with Qutip each time.
-# But if I figure out a nice way of writing a `__recompile__`
-# function, we should notice additional performance improvement.
-
-# TODO
-# Optimize to the unitary instead of to some state evolved from |0>
-
 global global_time_series
 global_time_series = np.linspace(0.0, 10.0, 20)
-
 
 @cudaq.analog_kernel
 def kernel(qubit_count: int, signals: list[np.ndarray], phases: list[float],
            detunings: list[float]):
+
+    hamiltonian = cudaq.Hamiltonian(qubit_count=qubit_count)
     # Constant Hamiltonian terms.
     # FIXME: Just using the same fixed distance for each atom in
     # a chain right now.
@@ -38,11 +29,11 @@ def kernel(qubit_count: int, signals: list[np.ndarray], phases: list[float],
         phase = phases[qubit]
         detuning = detunings[qubit]
 
-        ((signal / 2.) * np.exp(1j * phase)) * 0.5 * (X(qubit) -
-                                                      (1j * Y(qubit)))
-        ((signal / 2.) * np.exp(-1j * phase)) * 0.5 * (X(qubit) -
-                                                       (1j * Y(qubit)))
-        (-1 * detuning) * 0.5 * (I(qubit) - Z(qubit))
+        hamiltonian += ((signal / 2.) * np.exp(1j * phase)) * 0.5 * (X(qubit) -
+                                                                        (1j * Y(qubit)))
+        hamiltonian += ((signal / 2.) * np.exp(-1j * phase)) * 0.5 * (X(qubit) -
+                                                                        (1j * Y(qubit)))
+        hamiltonian += (-1 * detuning) * 0.5 * (I(qubit) - Z(qubit))
 
     # Interaction terms.
     for j in range(qubit_count):
@@ -51,7 +42,7 @@ def kernel(qubit_count: int, signals: list[np.ndarray], phases: list[float],
             # Need to rework the entire `cudaq.operator` implementation
             # to be able to handle arithmetic between operators that are
             # on different qubits.
-            (V_ij * 0.5) * (I(i) - Z(i)) * ()
+            hamiltonian += (V_ij * 0.5) * (I(i) - Z(i)) * ()
 
 
 def objective_function(x, *args):

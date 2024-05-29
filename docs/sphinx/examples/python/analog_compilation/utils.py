@@ -6,8 +6,8 @@ import numpy as np
 # Storing the `cudaq.operator`'s that we build up here in this global variable.
 # This is not a great solution, but it prevents me from having to pass extra
 # arguments around to the X/Y/Z/I operators on the mock front end.
-global operators
-operators = []
+# global operators
+# operators = []
 
 
 # Parent class for the operators that we will use to construct
@@ -20,7 +20,9 @@ class operator:
             # Instead of overloading this constructor for each
             # child class, I just use a hacky f-string method.
             exec(f"self.operator_term = cudaq.spin.{term}(qubit)")
-            operators.append(self)
+
+            # operators.append(self)
+
             # Store any coefficients that will be time-dependent; e.g, we don't
             # just have a single value for them. This may either be a function
             # that is called at each time step, or an array where each respective
@@ -215,15 +217,24 @@ def gate_fidelity(want_gate, got_gate):
 
 cudaq.operator.gate_fidelity = gate_fidelity
 
-
 # Analog kernel decorator -- akin to the `@cudaq.kernel` decorator.
 class analog_kernel:
 
     def __init__(self, kernel_function: callable):
         self.kernel_function = kernel_function
         self.qubit_count = None
+        self.hamiltonian = None
+        self.hamiltonian_operations_list = []
+        
         # TODO: might need a flag like this for re-compiling
         # self.already_initialized = True
+    
+    def set_hamiltonian(self, hamiltonian_object):
+        print(f"setting hamiltonian = {hamiltonian_object}\n")
+        self.hamiltonian = hamiltonian_object
+
+    def append_hamiltonian_term(self, term):
+        self.hamiltonian_operations_list.append(term)
 
     def __call__(self, *args, **kwargs):
         return self.kernel_function(*args, **kwargs)
@@ -241,11 +252,12 @@ class analog_kernel:
         # We have to sum all of the terms here since we've kept track
         # of them individually, and therefore, not all of them have been
         # projected to the full Hilbert space yet.
-        self.qubit_count = sum([term.operator_term for term in operators
+        print("256 : ", self, "\n")
+        self.qubit_count = sum([term.operator_term for term in self.hamiltonian_operations_list
                                ]).get_qubit_count()
 
         self.qobjects = []
-        for term in operators:
+        for term in self.hamiltonian_operations_list:
             # Each operator term was constructed in isolation, therefore
             # they have no clue of the total size that the Hilbert space
             # has grown to. This will cast everything to the full Hilbert
@@ -283,6 +295,20 @@ class analog_kernel:
 
 
 cudaq.analog_kernel = analog_kernel
+
+
+class Hamiltonian(cudaq.analog_kernel):
+
+    def __init__(self, qubit_count: int):
+        self.qubit_count = qubit_count
+        super(Hamiltonian, self).set_hamiltonian(self)
+
+    def __iadd__(self, hamiltonian_term):
+        print(dir(super(Hamiltonian, self)))
+        super(Hamiltonian).append_hamiltonian_term(hamiltonian_term)
+        return self
+
+cudaq.Hamiltonian = Hamiltonian
 
 
 # Updated observe function to handle the analog kernel.
@@ -349,7 +375,7 @@ def observe(kernel, time_steps, *args, verbose=False, **kwargs):
 
     # Execute the simulation on the Qutip backend.
     result = qutip.sesolve(H=kernel.qobjects,
-                           rho0=psi_initial,
+                           psi0=psi_initial,
                            tlist=time_steps,
                            e_ops=sigma_z,
                            options=solver_options)
