@@ -30,6 +30,13 @@ public:
 /// AnalogSimulator from AnalogSimulatorBase allows simulation sub-types
 /// to specify the floating point precision for the simulation
 class AnalogSimulatorBase : public AnalogSimulator {
+protected:
+  /// @brief Delegates to the differential equation solver to
+  /// evolve the unitary time propagator for the system.
+  void evolve_state(/*TODO*/) override {
+    // pass
+  }
+
 public:
   cudaq::observe_result observe(/*TODO*/) override {
     // pass

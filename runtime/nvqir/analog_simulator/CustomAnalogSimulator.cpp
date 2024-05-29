@@ -12,6 +12,11 @@
 namespace nvqir {
 
 class CustomAnalogSimulator : public nvqir::AnalogSimulatorBase {
+protected:
+  void evolve_state(/*TODO*/) override {
+    // pass
+  }
+  
 public:
 
 // we need from the user:
@@ -23,7 +28,7 @@ public:
   cudaq::observe_result observe(/*TODO*/) override {
     // pass
   }
-  
+
 };
 
 }; // namespace nvqir
