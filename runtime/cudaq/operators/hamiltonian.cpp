@@ -26,7 +26,4 @@
 #include <set>
 #include <utility>
 
-
-namespace cudaq {
-
-}; // namespace cudaq
+namespace cudaq {}; // namespace cudaq

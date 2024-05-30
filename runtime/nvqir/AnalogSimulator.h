@@ -22,7 +22,6 @@ public:
   /// @brief Compute the expected value of the given spin op
   /// with respect to the current state, <psi | H | psi>.
   virtual cudaq::observe_result observe(/*TODO*/) = 0;
-
 };
 
 /// @brief The AnalogSimulatorBase is the type that is meant to

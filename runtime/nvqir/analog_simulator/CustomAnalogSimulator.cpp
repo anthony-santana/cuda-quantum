@@ -16,19 +16,17 @@ protected:
   void evolve_state(/*TODO*/) override {
     // pass
   }
-  
-public:
 
-// we need from the user:
-//     (1) the system hamiltonian
-//     (2) the initial state (hard-code for now)
-//     (3) the time steps for evolution
-//     (4) an expectation value to take w.r.t
+public:
+  // we need from the user:
+  //     (1) the system hamiltonian
+  //     (2) the initial state (hard-code for now)
+  //     (3) the time steps for evolution
+  //     (4) an expectation value to take w.r.t
 
   cudaq::observe_result observe(/*TODO*/) override {
     // pass
   }
-
 };
 
 }; // namespace nvqir

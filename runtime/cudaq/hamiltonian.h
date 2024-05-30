@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <cudaq/spin_op.h>
 #include "operators.h"
 #include "utils/cudaq_utils.h"
+#include <cudaq/spin_op.h>
 
 #include <complex>
 #include <functional>
@@ -34,10 +34,9 @@ public:
   virtual ~hamiltonian() = default;
 
   void append_hamiltonian_term(Operator term);
-  void set_qubit_count(int qubit_count) { hamiltonian_qubit_count = qubit_count; };
-  
-
-
+  void set_qubit_count(int qubit_count) {
+    hamiltonian_qubit_count = qubit_count;
+  };
 };
 
 } // namespace cudaq
