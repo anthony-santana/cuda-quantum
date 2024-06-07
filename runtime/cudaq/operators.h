@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include "common/EigenDense.h"
+#include "common/EigenSparse.h"
+
 #include "utils/cudaq_utils.h"
 #include <cudaq/spin_op.h>
 
@@ -16,6 +19,11 @@ namespace cudaq {
 /// @brief A data class used to keep track of the
 /// coefficients to a `cudaq::Operator`.
 class OperatorCoefficient {
+// protected:
+//   // To make algebraic manipulations a bit simpler between
+//   // coefficient vectors, we will work in Eigen under the
+//   // hood.
+//   Eigen::VectorXd m_coefficientValues;
 
 public:
   /// @brief The constructors
@@ -23,21 +31,54 @@ public:
   /// @brief The destructor
   virtual ~OperatorCoefficient() = default;
 
-  bool isVector = false;
-  bool isConstant = false;
-  std::vector<double> coefficientValues;
+  // Making public for now while I prototype, but the eigen
+  // vector should ultimately remain protected. Then we can
+  // cast back to std vector to return values to user.
+  Eigen::VectorXd m_coefficientValues;
 
-  void set_value(std::vector<double> &values) {
-    coefficientValues = values;
+  bool isVector = false;
+  bool isConstant = true;
+
+  void set_coefficient_values(std::vector<double> &values) {
+    m_coefficientValues = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(
+        values.data(), values.size());
     isVector = true;
+    isConstant = false;
   }
+
+  void operator*=(double value) {
+    // If this coefficient is a constant value, all of this
+    // multiplication will have already occured at the `spin_op`
+    // level. Hence, we do nothing.
+    // Otherwise, if it's a `float * vector`, we will scale the
+    // vector accordingly. 
+    if (!isConstant) {
+      m_coefficientValues *= value;
+    }
+  }
+
+  void operator*=(std::vector<double> &values) {
+    auto cast_values = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(
+        values.data(), values.size());
+    // Should check these are the same length so no
+    // Eigen errors bleed through to the user.
+    m_coefficientValues *= cast_values;
+  }
+
+  void operator*=(OperatorCoefficient other) {
+    m_coefficientValues *= other.m_coefficientValues;
+  }
+
+  // std::vector<double> get_coefficient_values() { /* TODO */ }
+
+  Eigen::VectorXd get_raw_coefficient_values() { return m_coefficientValues; }
 };
 
 class Operator {
 public:
   /// @brief The constructor
   Operator(int qubit_index);
-  Operator(std::vector<int> indices);
+  Operator(std::vector<int> &indices);
   /// @brief The destructor
   virtual ~Operator() = default;
 
@@ -58,16 +99,47 @@ public:
   std::vector<int> qubits;
 
   virtual void set_basis_operator(int qubit) = 0;
-  /// Will only be overrided by the `Composite` operator.
-  virtual void set_basis_operator(Operator op, ...) = 0;
+  /// REMOVEME: Will only be overrided by the `Composite` operator.
+  // virtual void set_basis_operator(Operator op, ...) = 0;
 
-  void set_coefficient_value(double coefficient_value) {
-    // pass
+  // Bakes any constant coefficient values directly into
+  // the underlying `spin_op` so that we don't need to keep
+  // track of it in the coefficient operator class.
+  // Ex: `1.0 * X(0)`
+  void operator*(const double coefficient_value) { basis_operator *= coefficient_value; }
+
+  // If someone passes a vector of coefficients to multiply by,
+  // we will store the vector in the `OperatorCoefficient`.
+  // Ex: `{1.0, 2.0, ...} * X(0)`
+  void operator*(std::vector<double> &coefficient_values) {
+    coefficient.set_coefficient_values(coefficient_values);
   }
 
-  void set_coefficient_value(std::vector<double> &coefficient_values) {
-    // pass
+  // If someone multiplies one operator by another, e.g,
+  // `X(0) * Y(1)`, we will create an operator of type
+  // `Composite`. This will store the indices of any qubits
+  // the composite term applies to, will multiply the underlying
+  // basis operators, and will handle multiplying any constant
+  // or time-dependent coefficient values.
+  Operator *operator*(Operator &other) {
+
+    // FIXME: Handle this if they are both on the same qubit (we
+    // don't really need this vector in that case)
+    std::vector<int> new_qubit_indices = {qubit, other.qubit};
+    auto* composite_op = Operator(new_qubit_indices);
+
+    // Multiply the underlying basis ops.
+    spin_op new_basis_op = basis_operator * other.basis_operator;
+    composite_op->from_composite_spin_op(new_basis_op);
+
+    // Multiply the underlying coefficients.
+    coefficient *= other.coefficient;
+    
+    return composite_op;
   }
+
+  // Will only be overridden by the `Composite` child class.
+  virtual void from_composite_spin_op(spin_op composite_op) = 0;
 };
 
 class X : public Operator {
@@ -81,19 +153,6 @@ public:
 
   void set_basis_operator(int qubit_index) override {
     basis_operator = cudaq::spin::x(qubit_index);
-  };
-
-  Operator *operator*(const Operator &other) {
-    // if (coefficient.isConstant && other.coefficient.isConstant) {
-    // If these coefficients are both constant, then they
-    // should be baked into the actual `spin_op`, so we just
-    // need to multiply them directly.
-    spin_op new_op = basis_operator * other.basis_operator;
-    std::vector<int> qubit_indices = {qubit, other.qubit};
-    auto composite_op = Operator(qubit_indices);
-    composite_op.from_operators(basis_operator, other.basis_operator);
-    // }
-    return composite_op;
   }
 };
 
@@ -108,20 +167,6 @@ public:
 
   void set_basis_operator(int qubit_index) override {
     basis_operator = cudaq::spin::y(qubit_index);
-  };
-
-  Operator *operator*(const Operator &other) {
-
-    // if (coefficient.isConstant && other.coefficient.isConstant) {
-    // If these coefficients are both constant, then they
-    // should be baked into the actual `spin_op`, so we just
-    // need to multiply them directly.
-    spin_op new_op = basis_operator * other.basis_operator;
-    //
-    std::vector<int> qubit_indices = {}
-    // }
-    // then create and return a composite operator
-    return 0;
   }
 };
 
@@ -136,21 +181,6 @@ public:
 
   void set_basis_operator(int qubit_index) override {
     basis_operator = cudaq::spin::z(qubit_index);
-  };
-
-  Operator *operator*(const Operator &other) {
-
-    // if (coefficient.isConstant && other.coefficient.isConstant) {
-    // If these coefficients are both constant, then they
-    // should be baked into the actual `spin_op`, so we just
-    // need to multiply them directly.
-    spin_op new_op = basis_operator * other.basis_operator;
-    //
-    std::vector<int> qubit_indices = {}
-
-    // }
-    // then create and return a composite operator
-    return 0;
   }
 };
 
@@ -165,21 +195,6 @@ public:
 
   void set_basis_operator(int qubit_index) override {
     basis_operator = cudaq::spin::i(qubit_index);
-  };
-
-  Operator *operator*(const Operator &other) {
-
-    // if (coefficient.isConstant && other.coefficient.isConstant) {
-    // If these coefficients are both constant, then they
-    // should be baked into the actual `spin_op`, so we just
-    // need to multiply them directly.
-    spin_op new_op = basis_operator * other.basis_operator;
-    //
-    std::vector<int> qubit_indices = {}
-
-    // }
-    // then create and return a composite operator
-    return 0;
   }
 };
 
@@ -194,16 +209,15 @@ class Composite : public Operator {
 public:
   /// Since this will represent terms across multiple qubits,
   /// we will have to
-  Composite(std::vector<int> indices) : Operator(indices) { qubits = indices; }
+  Composite(std::vector<int> &indices) : Operator(indices) { qubits = indices; }
 
   bool isComposite = true;
 
   /// Can accept a pair of other `cudaq::Operator`'s
   /// that we'd like to join together.
-  template <typename OpTypeA, typename OpTypeB>
-  void from_operators(OpTypeA opA, OpTypeB opB) {
-    basis_operator = opA.basis_operator * opB.basis_operator;
-  };
+  void from_composite_spin_op(spin_op composite_op) override {
+    basis_operator = composite_op;
+  }
 };
 
 } // namespace cudaq

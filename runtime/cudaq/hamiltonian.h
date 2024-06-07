@@ -25,18 +25,15 @@ protected:
   /// Hamiltonian in each entry of this vector. The underlying
   /// operator data-type is a `cudaq::Operator`.
   std::vector<Operator> hamiltonian_terms;
-  int hamiltonian_qubit_count;
+  int m_qubit_count;
 
 public:
   /// @brief The constructor
-  hamiltonian(int qubit_count) { set_qubit_count(qubit_count); };
+  hamiltonian(int qubit_count) { m_qubit_count = qubit_count; };
   /// @brief The destructor
   virtual ~hamiltonian() = default;
 
   void append_hamiltonian_term(Operator term);
-  void set_qubit_count(int qubit_count) {
-    hamiltonian_qubit_count = qubit_count;
-  };
 };
 
 } // namespace cudaq
