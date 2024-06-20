@@ -10,6 +10,10 @@
 
 #include "cudaq/spin_op.h"
 
+// cudaq::observe_result
+// cudaq::sample_result
+// 
+
 namespace nvqir {
 
 class AnalogSimulator {
