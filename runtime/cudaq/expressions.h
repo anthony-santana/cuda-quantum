@@ -4,11 +4,63 @@
 
 #include <functional>
 #include <map>
+#include <set>
 
 namespace cudaq {
 
 class OperatorSum;
-class OperatorSum {};
+class OperatorSum {
+private:
+  std::vector<ProductOperator> _terms;
+
+  std::vector<std::tuple<ScalarOperator, ElementaryOperator>> canonicalize_product(const ProductOperator &prod) const;
+
+  std::vector<std::tuple<ScalarOperator, ElementaryOperator>> _canonical_terms() const;
+
+public:
+  OperatorSum(const std::vector<ProductOperator> &terms = {});
+
+  OperatorSum canonicalize() const;
+
+  bool operator==(const OperatorSum &other) const;
+
+  std::vector<int> degrees() const;
+
+  std::map<std::string, std::string> parameters() const;
+
+  bool _is_spinop() const;
+
+  template<typename TEval>
+  TEval _evaluate(OperatorArithmetics<TEval> &arithmetics) const;
+
+  complex_matrix to_matrix(const std::map<int, int> &dimensions, const std::map<std::string, double> &params = {}) const;
+
+  // Arithmetic operators
+  OperatorSum operator+(const OperatorSum &other) const;
+  OperatorSum operator-(const OperatorSum &other) const;
+  OperatorSum operator*(const OperatorSum &other) const;
+  OperatorSum operator/(const OperatorSum &other) const;
+  OperatorSum operator+=(const OperatorSum &other);
+  OperatorSum operator-=(const OperatorSum &other);
+
+  OperatorSum operator+(const ScalarOperator &other) const;
+  OperatorSum operator-(const ScalarOperator &other) const;
+  OperatorSum operator+=(const ScalarOperator &other);
+  OperatorSum operator-=(const ScalarOperator &other);
+
+  OperatorSum operator+(const ProductOperator &other) const;
+  OperatorSum operator-(const ProductOperator &other) const;
+  OperatorSum operator+=(const ProductOperator &other);
+  OperatorSum operator-=(const ProductOperator &other);
+
+  OperatorSum operator+(const ElementaryOperator &other) const;
+  OperatorSum operator-(const ElementaryOperator &other) const;
+  OperatorSum operator+=(const ElementaryOperator &other);
+  OperatorSum operator-=(const ElementaryOperator &other);
+
+  std::string to_string() const;
+};
+
 class ProductOperator : public OperatorSum {};
 class ScalarOperator;
 class ElementaryOperator;
@@ -16,6 +68,7 @@ class ElementaryOperator;
 class ElementaryOperator : public ProductOperator {
 private:
   std::map<std::string, Definition> m_ops;
+  std::function<complex_matrix(std::vector<int>, std::vector<VariantArg>)> func;
 
 public:
   // The constructor should never be called directly by the user:
@@ -26,29 +79,15 @@ public:
   // / @arg degrees : the degrees of freedom that the operator acts upon.
   ElementaryOperator(std::string operator_id, std::vector<int> degrees);
 
+  ElementaryOperator(std::function<complex_matrix(std::vector<int>, std::vector<VariantArg>)> f) : func(f) {}
+
   // Arithmetic overloads against all other operator types.
-  OperatorSum operator+(OperatorSum other);
-  OperatorSum operator-(OperatorSum other);
-  OperatorSum operator+=(OperatorSum other);
-  OperatorSum operator-=(OperatorSum other);
   ProductOperator operator*(OperatorSum other);
   ProductOperator operator*=(OperatorSum other);
-  OperatorSum operator+(ScalarOperator other);
-  OperatorSum operator-(ScalarOperator other);
-  OperatorSum operator+=(ScalarOperator other);
-  OperatorSum operator-=(ScalarOperator other);
   ProductOperator operator*(ScalarOperator other);
   ProductOperator operator*=(ScalarOperator other);
-  OperatorSum operator+(ProductOperator other);
-  OperatorSum operator-(ProductOperator other);
-  OperatorSum operator+=(ProductOperator other);
-  OperatorSum operator-=(ProductOperator other);
   ProductOperator operator*(ProductOperator other);
   ProductOperator operator*=(ProductOperator other);
-  OperatorSum operator+(ElementaryOperator other);
-  OperatorSum operator-(ElementaryOperator other);
-  OperatorSum operator+=(ElementaryOperator other);
-  OperatorSum operator-=(ElementaryOperator other);
   ProductOperator operator*(ElementaryOperator other);
   ProductOperator operator*=(ElementaryOperator other);
   /// @brief True, if the other value is an elementary operator with the same id
