@@ -57,6 +57,9 @@ public:
   /// @brief Return the number of columns
   std::size_t cols() const { return nCols; }
 
+  /// @brief Return the total number of elements in the matrix
+  std::size_t size() const { return nRows * nCols; }
+
   /// @brief Multiply this matrix with the provided other matrix.
   /// This does not modify this matrix but instead returns a
   /// new matrix value.
