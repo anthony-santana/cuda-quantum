@@ -6,7 +6,6 @@
  * the terms of the Apache License 2.0 which accompanies this distribution.    *
  ******************************************************************************/
 
-#include "common/EigenDense.h"
 #include "cudaq/operators.h"
 
 #include <iostream>
@@ -17,7 +16,7 @@ namespace cudaq {
 
 std::map<std::string, Definition> elementary_operator::m_ops = {};
 
-elementary_operator elementary_operator::identity(int degree) {
+product_operator<elementary_operator> elementary_operator::identity(int degree) {
   std::string op_id = "identity";
   auto op = elementary_operator(op_id, {degree});
   // A dimension of -1 indicates this operator can act on any dimension.
@@ -36,10 +35,10 @@ elementary_operator elementary_operator::identity(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::zero(int degree) {
+product_operator<elementary_operator> elementary_operator::zero(int degree) {
   std::string op_id = "zero";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -58,10 +57,10 @@ elementary_operator elementary_operator::zero(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::annihilate(int degree) {
+product_operator<elementary_operator> elementary_operator::annihilate(int degree) {
   std::string op_id = "annihilate";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -80,10 +79,10 @@ elementary_operator elementary_operator::annihilate(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::create(int degree) {
+product_operator<elementary_operator> elementary_operator::create(int degree) {
   std::string op_id = "create";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -102,10 +101,10 @@ elementary_operator elementary_operator::create(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::position(int degree) {
+product_operator<elementary_operator> elementary_operator::position(int degree) {
   std::string op_id = "position";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -128,10 +127,10 @@ elementary_operator elementary_operator::position(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::momentum(int degree) {
+product_operator<elementary_operator> elementary_operator::momentum(int degree) {
   std::string op_id = "momentum";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -154,10 +153,10 @@ elementary_operator elementary_operator::momentum(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::number(int degree) {
+product_operator<elementary_operator> elementary_operator::number(int degree) {
   std::string op_id = "number";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -176,10 +175,10 @@ elementary_operator elementary_operator::number(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::parity(int degree) {
+product_operator<elementary_operator> elementary_operator::parity(int degree) {
   std::string op_id = "parity";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -198,11 +197,10 @@ elementary_operator elementary_operator::parity(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator
-elementary_operator::displace(int degree) {
+product_operator<elementary_operator> elementary_operator::displace(int degree) {
   std::string op_id = "displace";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -228,10 +226,10 @@ elementary_operator::displace(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
-elementary_operator elementary_operator::squeeze(int degree) {
+product_operator<elementary_operator> elementary_operator::squeeze(int degree) {
   std::string op_id = "squeeze";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
@@ -258,115 +256,13 @@ elementary_operator elementary_operator::squeeze(int degree) {
     };
     op.define(op_id, op.expected_dimensions, func);
   }
-  return op;
+  return product_operator<elementary_operator>(1., op);
 }
 
 matrix_2 elementary_operator::to_matrix(
     std::map<int, int> dimensions,
-    std::map<std::string, std::complex<double>> parameters) {
+    std::map<std::string, std::complex<double>> parameters) const {
   return m_ops[id].generator(dimensions, parameters);
-}
-
-// left-hand arithmetics
-
-product_operator<elementary_operator> operator*(double other, const elementary_operator &self) {
-  return product_operator<elementary_operator>(other, self);
-}
-
-operator_sum<elementary_operator> operator+(double other, const elementary_operator &self) {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., self));
-}
-
-operator_sum<elementary_operator> operator-(double other, const elementary_operator &self) {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, -1. * self);
-}
-
-product_operator<elementary_operator> operator*(std::complex<double> other, const elementary_operator &self) {
-  return product_operator<elementary_operator>(other, self);
-}
-
-operator_sum<elementary_operator> operator+(std::complex<double> other, const elementary_operator &self) {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., self));
-}
-
-operator_sum<elementary_operator> operator-(std::complex<double> other, const elementary_operator &self) {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, -1. * self);
-}
-
-product_operator<elementary_operator> operator*(const scalar_operator &other, const elementary_operator &self) {
-  return product_operator<elementary_operator>(other, self);
-}
-
-operator_sum<elementary_operator> operator+(const scalar_operator &other, const elementary_operator &self) {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., self));
-}
-
-operator_sum<elementary_operator> operator-(const scalar_operator &other, const elementary_operator &self) {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, -1. * self);
-}
-
-// right-hand arithmetics
-
-product_operator<elementary_operator> elementary_operator::operator*(double other) const {
-  return product_operator<elementary_operator>(other, *this);
-}
-
-operator_sum<elementary_operator> elementary_operator::operator+(double other) const {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., *this));
-}
-
-operator_sum<elementary_operator> elementary_operator::operator-(double other) const {
-  product_operator<elementary_operator> coefficient(-1. * other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., *this));
-}
-
-product_operator<elementary_operator> elementary_operator::operator*(std::complex<double> other) const {
-  return product_operator<elementary_operator>(other, *this);
-}
-
-operator_sum<elementary_operator> elementary_operator::operator+(std::complex<double> other) const {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., *this));
-}
-
-operator_sum<elementary_operator> elementary_operator::operator-(std::complex<double> other) const {
-  product_operator<elementary_operator> coefficient(-1. * other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., *this));
-}
-
-product_operator<elementary_operator> elementary_operator::operator*(const scalar_operator &other) const {
-  return product_operator<elementary_operator>(other, *this);
-}
-
-operator_sum<elementary_operator> elementary_operator::operator+(const scalar_operator &other) const {
-  product_operator<elementary_operator> coefficient(other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., *this));
-}
-
-operator_sum<elementary_operator> elementary_operator::operator-(const scalar_operator &other) const {
-  product_operator<elementary_operator> coefficient(-1. * other);
-  return operator_sum<elementary_operator>(coefficient, product_operator<elementary_operator>(1., *this));
-}
-
-product_operator<elementary_operator> elementary_operator::operator*(const elementary_operator &other) const {
-  return product_operator<elementary_operator>(1., *this, other);
-}
-
-operator_sum<elementary_operator> elementary_operator::operator+(const elementary_operator &other) const {
-  auto term1 = product_operator<elementary_operator>(1., *this);
-  auto term2 = product_operator<elementary_operator>(1., other);
-  return operator_sum<elementary_operator>(term1, term2);
-}
-
-operator_sum<elementary_operator> elementary_operator::operator-(const elementary_operator &other) const {
-  return operator_sum<elementary_operator>(product_operator<elementary_operator>(1., *this), -1. * other);
 }
 
 } // namespace cudaq

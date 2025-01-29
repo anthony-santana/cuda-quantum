@@ -93,14 +93,15 @@ EvaluatedMatrix MatrixArithmetics::add(EvaluatedMatrix op1,
 }
 
 EvaluatedMatrix MatrixArithmetics::evaluate(
-    std::variant<scalar_operator, elementary_operator> op) {
-  auto getDegrees = [](auto &&t) { return t.degrees; };
-  auto toMatrix = [&](auto &&t) {
-    return t.to_matrix(this->m_dimensions, this->m_parameters);
-  };
-  auto degrees = std::visit(getDegrees, op);
-  auto matrix = std::visit(toMatrix, op);
-  return EvaluatedMatrix(degrees, matrix);
+    std::variant<scalar_operator, elementary_operator, product_operator<elementary_operator>> op) {
+  // auto getDegrees = [](auto &&t) { return t.degrees; };
+  // auto toMatrix = [&](auto &&t) {
+  //   return t.to_matrix(this->m_dimensions, this->m_parameters);
+  // };
+  // auto degrees = std::visit(getDegrees, op);
+  // auto matrix = std::visit(toMatrix, op);
+  // return EvaluatedMatrix(degrees, matrix);
+  throw std::runtime_error("implementation broken.\n");
 }
 
 } // namespace cudaq
