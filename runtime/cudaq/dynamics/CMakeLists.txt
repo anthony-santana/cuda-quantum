@@ -11,8 +11,17 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ctad-maybe-unsupported")
 set(INTERFACE_POSITION_INDEPENDENT_CODE ON)
 
 set(CUDAQ_OPS_SRC
-  scalar_operators.cpp elementary_operators.cpp product_operators.cpp operator_sum.cpp schedule.cpp definition.cpp manipulation.cpp helpers.cpp
+  definition.cpp
+  scalar_operators.cpp 
+  elementary_operators.cpp 
+  product_operators.cpp 
+  operator_sum.cpp 
+  instantiations.cpp
+  schedule.cpp
+  manipulation.cpp
+  helpers.cpp
 )
+
 
 add_library(${LIBRARY_NAME} SHARED ${CUDAQ_OPS_SRC})
 set_property(GLOBAL APPEND PROPERTY CUDAQ_RUNTIME_LIBS ${LIBRARY_NAME})

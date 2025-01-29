@@ -522,7 +522,7 @@ operator_sum<HandlerTy> product_operator<HandlerTy>::operator-(const scalar_oper
 
 template <typename HandlerTy>
 requires std::derived_from<elementary_operator, HandlerTy>
-product_operator<HandlerTy>& product_operator<HandlerTy>::operator*=(const scalar_operator &other) {
+product_operator<HandlerTy>& product_operator<HandlerTy>::operator*=(scalar_operator other) {
   *this = *this * other;
   return *this;
 }
@@ -757,7 +757,7 @@ operator_sum<elementary_operator> product_operator<elementary_operator>::operato
 template
 operator_sum<elementary_operator> product_operator<elementary_operator>::operator-(const scalar_operator &other) const;
 template
-product_operator<elementary_operator>& product_operator<elementary_operator>::operator*=(const scalar_operator &other);
+product_operator<elementary_operator>& product_operator<elementary_operator>::operator*=(scalar_operator other);
 template
 product_operator<elementary_operator> product_operator<elementary_operator>::operator*(const elementary_operator &other) const;
 template

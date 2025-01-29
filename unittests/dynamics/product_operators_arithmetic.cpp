@@ -104,64 +104,6 @@ cudaq::matrix_2 squeeze_matrix(std::size_t size,
 
 } // namespace utils_1
 
-TEST(ExpressionTester, checkSimple) {
-  //   /// Sum of 3 elementary operators -- on the same DOF --
-  //   /// then checking the sum matrix.
-  //   {
-  //   int level_count = 3;
-
-  //   auto op0 = cudaq::elementary_operator::annihilate(0);
-  //   auto op1 = cudaq::elementary_operator::create(0);
-  //   auto op2 = cudaq::elementary_operator::identity(0);
-
-  //   auto sum = op0 + op1 + op2;
-
-  //   auto got_matrix = sum.to_matrix({{0, level_count}});
-  //   std::cout << "\nterm 0 = " << op0.to_matrix({{0, level_count}}).dump() <<
-  //   "\n"; std::cout << "\nterm 1 = " << op1.to_matrix({{0,
-  //   level_count}}).dump() << "\n"; std::cout << "\nterm 2 = " <<
-  //   op2.to_matrix({{0, level_count}}).dump() << "\n"; std::cout << "\ngot = "
-  //   << got_matrix.dump() << "\n";
-
-  // }
-
-  //   /// Difference of 3 elementary operators -- on the same DOF --
-  //   /// then checking the sum matrix.
-  //   {
-  //   int level_count = 3;
-
-  //   auto op0 = cudaq::elementary_operator::annihilate(0);
-  //   auto op1 = cudaq::elementary_operator::create(0);
-  //   auto op2 = cudaq::elementary_operator::identity(0);
-
-  //   auto difference = op0 - op1 - op2;
-
-  //   auto got_matrix = difference.to_matrix({{0, level_count}});
-  //   std::cout << "\nterm 0 = " << op0.to_matrix({{0, level_count}}).dump() <<
-  //   "\n"; std::cout << "\nterm 1 = " << op1.to_matrix({{0,
-  //   level_count}}).dump() << "\n"; std::cout << "\nterm 2 = " <<
-  //   op2.to_matrix({{0, level_count}}).dump() << "\n"; std::cout << "\ngot = "
-  //   << got_matrix.dump() << "\n";
-
-  // }
-
-  {
-    auto op0 = cudaq::elementary_operator::annihilate(0);
-    auto op1 = cudaq::elementary_operator::create(0);
-
-    auto prod0 = cudaq::product_operator({}, {op0});
-    auto prod1 = -1. * op1;
-    // auto sum = cudaq::operator_sum({prod0, prod1});
-    // // auto sum = prod0 + prod1;
-
-    std::cout << "\n op0 = " << op0.to_matrix({{0, 2}}).dump() << "\n";
-    std::cout << "\n op1 = " << op1.to_matrix({{0, 2}}).dump() << "\n";
-    std::cout << "\n prod0 = " << prod0.to_matrix({{0, 2}}).dump() << "\n";
-    std::cout << "\n prod1 = " << prod1.to_matrix({{0, 2}}).dump() << "\n";
-    // std::cout << "\n sum = " << sum.to_matrix({{0,2}}).dump() << "\n";
-  }
-}
-
 TEST(ExpressionTester, checkProductOperatorSimpleMatrixChecks) {
   std::vector<int> levels = {2, 3, 4};
 

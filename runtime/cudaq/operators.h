@@ -22,8 +22,9 @@
 namespace cudaq {
 
 /// Forward Declarations.
-template <typename TEval>
-class OperatorArithmetics;
+template <typename TEval> class OperatorArithmetics;
+class EvaluatedMatrix;
+class MatrixArithmetics;
 
 class scalar_operator {
 
@@ -106,8 +107,8 @@ public:
 
   // Return the scalar operator as a 1x1 matrix. This is needed for
   // compatibility with the other inherited classes.
-  matrix_2 to_matrix(const std::map<int, int> &dimensions,
-                     const std::map<std::string, std::complex<double>> &parameters) const;
+  matrix_2 to_matrix(const std::map<int, int> dimensions,
+                     const std::map<std::string, std::complex<double>> parameters = {}) const;
 
   // Arithmetic overloads against other operator types.
   scalar_operator operator*(double other) const;
@@ -178,8 +179,7 @@ private:
     aggregate_terms(std::forward<Args>(args)...);
   }
 
-  matrix_2 operator_sum<HandlerTy>::m_evaluate(
-      MatrixArithmetics arithmetics, std::map<int, int> dimensions,
+  matrix_2 m_evaluate(MatrixArithmetics arithmetics, std::map<int, int> dimensions,
       std::map<std::string, std::complex<double>> parameters, bool pad_terms = true);
 
 protected:
@@ -268,8 +268,8 @@ public:
   ///                      degrees of freedom: `{0:2, 1:2}`.
   /// @arg `parameters` : A map of the parameter names to their concrete,
   /// complex values.
-  matrix_2 to_matrix(const std::map<int, int> &dimensions,
-                     const std::map<std::string, double> &params = {}) const;
+  matrix_2 to_matrix(const std::map<int, int> dimensions,
+                     const std::map<std::string, std::complex<double>> parameters = {}) const;
 
   // Arithmetic operators
   operator_sum<HandlerTy> operator*(double other) const;
@@ -383,11 +383,8 @@ private:
     aggregate_terms(std::forward<Args>(args)...);
   }
 
-  std::vector<HandlerTy> get_terms() const { 
-    return operator_sum<HandlerTy>::terms[0]; }
-
-  scalar_operator get_coefficient() const { 
-    return operator_sum<HandlerTy>::coefficients[0]; }
+  matrix_2 m_evaluate(MatrixArithmetics arithmetics, std::map<int, int> dimensions,
+    std::map<std::string, std::complex<double>> parameters, bool pad_terms = true);
 
 public:
 
@@ -451,6 +448,12 @@ public:
 
   ~product_operator() = default;
 
+  std::vector<HandlerTy> get_terms() const { 
+    return operator_sum<HandlerTy>::terms[0]; }
+
+  scalar_operator get_coefficient() const { 
+    return operator_sum<HandlerTy>::coefficients[0]; }
+
   /// @brief The degrees of freedom that the operator acts on in canonical
   /// order.
   std::vector<int> degrees() const;
@@ -470,7 +473,7 @@ public:
   /// @arg `parameters` : A map of the parameter names to their concrete,
   /// complex values.
   matrix_2 to_matrix(std::map<int, int> dimensions,
-                     std::map<std::string, std::complex<double>> parameters);
+                     std::map<std::string, std::complex<double>> parameters = {});
 
   // Arithmetic overloads against all other operator types.
   product_operator<HandlerTy> operator*(double other) const;
@@ -606,7 +609,7 @@ public:
   ///                      that the operator acts on. Example for two, 2-level
   ///                      degrees of freedom: `{0 : 2, 1 : 2}`.
   matrix_2 to_matrix(std::map<int, int> dimensions,
-                     std::map<std::string, std::complex<double>> parameters);
+                     std::map<std::string, std::complex<double>> parameters = {});
 
   // Arithmetic overloads
   product_operator<elementary_operator> operator*(double other) const;
@@ -647,11 +650,9 @@ public:
   static elementary_operator number(int degree);
   static elementary_operator parity(int degree);
   static elementary_operator position(int degree);
-  /// FIXME:
-  static elementary_operator squeeze(int degree,
-                                     std::complex<double> amplitude);
-  static elementary_operator displace(int degree,
-                                      std::complex<double> amplitude);
+  /// Operators that require runtime parameters from the user.
+  static elementary_operator squeeze(int degree);
+  static elementary_operator displace(int degree);
 
   /// @brief Adds the definition of an elementary operator with the given id to
   /// the class. After definition, an the defined elementary operator can be

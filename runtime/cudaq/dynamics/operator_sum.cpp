@@ -21,7 +21,7 @@ cudaq::matrix_2 operator_sum<HandlerTy>::m_evaluate(
   std::cout << "\n evaluating operator sum \n";
 
   std::set<int> degrees_set;
-  for (auto op : m_terms) {
+  for (auto op : terms) {
     for (auto degree : op.degrees()) {
       std::cout << "degree = " << degree << "\n";
       degrees_set.insert(degree);
@@ -32,9 +32,9 @@ cudaq::matrix_2 operator_sum<HandlerTy>::m_evaluate(
   std::cout << "\n operator sum line 343 \n";
 
   // We need to make sure all matrices are of the same size to sum them up.
-  auto paddedTerm = [&](product_operator term) {
+  auto paddedTerm = [&](auto &&term) {
     std::vector<int> op_degrees;
-    for (auto op : term.m_elementary_ops) {
+    for (auto op : term.terms) {
       for (auto degree : op.degrees)
         op_degrees.push_back(degree);
     }
@@ -56,11 +56,11 @@ cudaq::matrix_2 operator_sum<HandlerTy>::m_evaluate(
   if (pad_terms) {
  
     std::cout << "\n operator sum line 368 \n";
-    sum = EvaluatedMatrix(degrees, paddedTerm(m_terms[0]).m_evaluate(arithmetics, dimensions,
+    sum = EvaluatedMatrix(degrees, paddedTerm(terms[0]).m_evaluate(arithmetics, dimensions,
                                               parameters, pad_terms));
     std::cout << "\n operator sum line 371 \n";
-    for (auto term_idx = 1; term_idx < m_terms.size(); ++term_idx) {
-      auto term = m_terms[term_idx];
+    for (auto term_idx = 1; term_idx < terms.size(); ++term_idx) {
+      auto term = terms[term_idx];
 
       auto eval = paddedTerm(term).m_evaluate(arithmetics, dimensions,
                                               parameters, pad_terms);
@@ -72,10 +72,10 @@ cudaq::matrix_2 operator_sum<HandlerTy>::m_evaluate(
   } else {
     std::cout << "\n operator sum line 379 \n";
     sum =
-        EvaluatedMatrix(degrees, m_terms[0].m_evaluate(arithmetics, dimensions,
+        EvaluatedMatrix(degrees, terms[0].m_evaluate(arithmetics, dimensions,
                                                        parameters, pad_terms));
-    for (auto term_idx = 1; term_idx < m_terms.size(); ++term_idx) {
-      auto term = m_terms[term_idx];
+    for (auto term_idx = 1; term_idx < terms.size(); ++term_idx) {
+      auto term = terms[term_idx];
       auto eval =
           term.m_evaluate(arithmetics, dimensions, parameters, pad_terms);
       sum = arithmetics.add(sum, EvaluatedMatrix(degrees, eval));
@@ -87,8 +87,8 @@ cudaq::matrix_2 operator_sum<HandlerTy>::m_evaluate(
 
 template <typename HandlerTy>
 matrix_2 operator_sum<HandlerTy>::to_matrix(
-    const std::map<int, int> &dimensions,
-    const std::map<std::string, std::complex<double>> &parameters) const {
+    const std::map<int, int> dimensions,
+    const std::map<std::string, std::complex<double>> parameters) const {
   /// FIXME: Not doing any conversion to spin op yet.
   return m_evaluate(MatrixArithmetics(dimensions, parameters), dimensions,
                     parameters);

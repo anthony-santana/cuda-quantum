@@ -202,7 +202,7 @@ elementary_operator elementary_operator::parity(int degree) {
 }
 
 elementary_operator
-elementary_operator::displace(int degree, std::complex<double> amplitude) {
+elementary_operator::displace(int degree) {
   std::string op_id = "displace";
   std::vector<int> degrees = {degree};
   auto op = elementary_operator(op_id, degrees);
