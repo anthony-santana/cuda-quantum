@@ -47,6 +47,58 @@ enum class GateName {
   PhasedRx
 };
 
+[[maybe_unused]] static GateName stringToGateName(std::string name) {
+  if (name == "x") {
+    return GateName::X;
+  }
+  if (name == "y") {
+    return GateName::Y;
+  }
+  if (name == "z") {
+    return GateName::Z;
+  }
+  if (name == "h") {
+    return GateName::H;
+  }
+  if (name == "s") {
+    return GateName::S;
+  }
+  if (name == "t") {
+    return GateName::T;
+  }
+  if (name == "sdg") {
+    return GateName::Sdg;
+  }
+  if (name == "tdg") {
+    return GateName::Tdg;
+  }
+  if (name == "rx") {
+    return GateName::Rx;
+  }
+  if (name == "ry") {
+    return GateName::Ry;
+  }
+  if (name == "rz") {
+    return GateName::Rz;
+  }
+  if (name == "r1") {
+    return GateName::R1;
+  }
+  if (name == "u1") {
+    return GateName::U1;
+  }
+  if (name == "u2") {
+    return GateName::U2;
+  }
+  if (name == "u3") {
+    return GateName::U3;
+  }
+  if (name == "phased_rx") {
+    return GateName::PhasedRx;
+  }
+  throw std::runtime_error("gate name not found.");
+}
+
 /// @brief Given the gate name (an element of the GateName enum),
 /// return the matrix data, optionally parameterized by a rotation angle.
 template <typename Scalar>

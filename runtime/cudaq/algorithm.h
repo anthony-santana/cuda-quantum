@@ -9,6 +9,7 @@
 #pragma once
 
 #include "algorithms/get_state.h"
+#include "algorithms/get_unitary.h"
 #include "algorithms/observe.h"
 #include "algorithms/optimizer.h"
 #include "algorithms/vqe.h"

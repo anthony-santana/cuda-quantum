@@ -87,6 +87,13 @@ void cudaq::matrix_2::check_size(std::size_t size, const Dimensions &dim) {
     throw std::runtime_error("vector must have enough elements");
 }
 
+cudaq::matrix_2 cudaq::matrix_2::identity(const std::size_t rows) {
+  auto result = cudaq::matrix_2(rows, rows);
+  for (std::size_t i = 0; i < rows; i++)
+    result[{i, i}] = 1. + 0.0j;
+  return result;
+}
+
 std::complex<double>
 cudaq::matrix_2::operator[](const std::vector<std::size_t> &at) const {
   if (at.size() != 2)
