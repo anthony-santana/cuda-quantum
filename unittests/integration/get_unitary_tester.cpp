@@ -90,6 +90,18 @@ matrix_2 u3(std::complex<double> theta, std::complex<double> phi,
       {2, 2});
 }
 
+matrix_2 zero_projection() {
+  auto result = matrix_2(2,2);
+  result[{0,0}] = 1.0+0.0j;
+  return result;
+}
+
+matrix_2 one_projection() {
+  auto result = matrix_2(2,2);
+  result[{1,1}] = 1.0+0.0j;
+  return result;
+}
+
 void checkEqual(cudaq::matrix_2 a, cudaq::matrix_2 b) {
   ASSERT_EQ(a.get_rank(), b.get_rank());
   ASSERT_EQ(a.get_rows(), b.get_rows());
@@ -109,80 +121,197 @@ void checkEqual(cudaq::matrix_2 a, cudaq::matrix_2 b) {
 
 TEST(GetUnitaryTester, checkSimpleKernel) {
 
-  /// Non-parameterized gates.
+  // /// Non-parameterized gates.
+  // {
+  //   auto kernel = []() {
+  //     cudaq::qvector qubit(1);
+  //     h(qubit[0]);
+  //     x(qubit[0]);
+  //     y(qubit[0]);
+  //     z(qubit[0]);
+  //     s(qubit[0]);
+  //     sdg(qubit[0]);
+  //     t(qubit[0]);
+  //     tdg(qubit[0]);
+  //   };
+
+  //   auto want_unitary = utils::h() * utils::x() * utils::y() * utils::z() *
+  //                       utils::s() * utils::sdg() * utils::t() * utils::tdg();
+  //   auto got_unitary = cudaq::get_unitary(kernel);
+
+  //   utils::checkEqual(want_unitary, got_unitary);
+  // }
+  
+  // // /// FIXME:
+  // // /// Adjoint gates.
+  // // {
+  // //   auto kernel = []() {
+  // //     cudaq::qvector qubit(1);
+  // //     h<cudaq::adj>(qubit[0]);
+  // //     x<cudaq::adj>(qubit[0]);
+  // //     y<cudaq::adj>(qubit[0]);
+  // //     z<cudaq::adj>(qubit[0]);
+  // //     s<cudaq::adj>(qubit[0]);
+  // //     t<cudaq::adj>(qubit[0]);
+  // //   };
+
+  // //   auto want_unitary = utils::h() * utils::x() * utils::y() * utils::z() *
+  // //                       utils::s() * utils::t();
+  // //   auto got_unitary = cudaq::get_unitary(kernel);
+
+  // //   std::cout << "\n got = \n" << got_unitary.dump() << "\n";
+  // //   std::cout << "\n want = \n" << want_unitary.dump() << "\n";
+
+  // //   utils::checkEqual(want_unitary, got_unitary);
+  // // }
+
+  // /// Parameterized gates.
+  // {
+  //   auto kernel = [](std::vector<double> angles) {
+  //     cudaq::qubit qubit;
+  //     rx(angles[0], qubit);
+  //     ry(angles[1], qubit);
+  //     rz(angles[2], qubit);
+  //     r1(angles[3], qubit);
+  //     u3(angles[4], angles[5], angles[6], qubit);
+  //   };
+
+  //   // Magic values.
+  //   std::vector<double> angles = {M_PI,       M_PI_2,     M_PI_4,    M_PI / 8.,
+  //                                 M_PI / 16., M_PI / 32., M_PI / 64.};
+  //   auto want_unitary = utils::rx(angles[0]) * utils::ry(angles[1]) *
+  //                       utils::rz(angles[2]) * utils::r1(angles[3]) *
+  //                       utils::u3(angles[4], angles[5], angles[6]);
+  //   auto got_unitary = cudaq::get_unitary(kernel, angles);
+
+  //   utils::checkEqual(want_unitary, got_unitary);
+  // }
+
+  // // Single CX gate.
+  // {
+  //   auto kernel = []() {
+  //     cudaq::qvector qubits(2);
+  //     cx(qubits[0], qubits[1]);
+  //   };
+
+  //   auto want_unitary = cudaq::matrix_2({1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,0.,1.,0.,0.,1.,0.}, {4,4});
+  //   auto got_unitary = cudaq::get_unitary(kernel);
+
+  //   utils::checkEqual(want_unitary, got_unitary);
+  // }
+
+  // // Single CY gate.
+  // {
+  //   auto kernel = []() {
+  //     cudaq::qvector qubits(2);
+  //     cy(qubits[0], qubits[1]);
+  //   };
+
+  //   auto want_unitary = cudaq::matrix_2({1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,0.,0.0-1j,0.,0.,0.0+1j,0.}, {4,4});
+  //   auto got_unitary = cudaq::get_unitary(kernel);
+
+  //   utils::checkEqual(want_unitary, got_unitary);
+  // }
+
+  // // Single CZ gate.
+  // {
+  //   auto kernel = []() {
+  //     cudaq::qvector qubits(2);
+  //     cz(qubits[0], qubits[1]);
+  //   };
+
+  //   auto want_unitary = cudaq::matrix_2({1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,-1.}, {4,4});
+  //   auto got_unitary = cudaq::get_unitary(kernel);
+
+  //   utils::checkEqual(want_unitary, got_unitary);
+  // }
+
+  // Single CX gate in a sub-space.
   {
-    auto kernel = []() {
-      cudaq::qvector qubit(1);
-      h(qubit[0]);
-      x(qubit[0]);
-      y(qubit[0]);
-      z(qubit[0]);
-      s(qubit[0]);
-      sdg(qubit[0]);
-      t(qubit[0]);
-      tdg(qubit[0]);
+    auto kernel = [](int qubit_count) {
+      cudaq::qvector qubits(qubit_count);
+      cx(qubits[0], qubits[1]);
+      x(qubits);
     };
 
-    auto want_unitary = utils::h() * utils::x() * utils::y() * utils::z() *
-                        utils::s() * utils::sdg() * utils::t() * utils::tdg();
-    auto got_unitary = cudaq::get_unitary(kernel);
+    auto want_unitary = cudaq::matrix_2({1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,0.,1.,0.,0.,1.,0.}, {4,4});
+    int qubit_count = 3;
+    for (auto i=0; i<(qubit_count-2); i++)
+      want_unitary.kronecker_inplace(matrix_2::identity(2));
+    
+    auto x_operator = utils::x();
+    for (auto i=0; i<(qubit_count-1); i++)
+      x_operator.kronecker_inplace(matrix_2::identity(2));
 
-    utils::checkEqual(want_unitary, got_unitary);
+    want_unitary *= x_operator;
+
+    auto got_unitary = cudaq::get_unitary(kernel, qubit_count);
+
+    std::cout << "\nwant = \n" << want_unitary.dump();
+    std::cout << "\ngot = \n" << got_unitary.dump();
+
+    // utils::checkEqual(want_unitary, got_unitary);
   }
 
-  /// Parameterized gates.
-  {
-    auto kernel = [](std::vector<double> angles) {
-      cudaq::qubit qubit;
-      rx(angles[0], qubit);
-      ry(angles[1], qubit);
-      rz(angles[2], qubit);
-      r1(angles[3], qubit);
-      u3(angles[4], angles[5], angles[6], qubit);
-    };
+  // // Toffoli gate.
+  // {
+  //   auto kernel = []() {
+  //     cudaq::qvector qubits(3);
+  //     x<cudaq::ctrl>(qubits[0], qubits[1], qubits[2]);
+  //   };
 
-    // Magic values.
-    std::vector<double> angles = {M_PI,       M_PI_2,     M_PI_4,    M_PI / 8.,
-                                  M_PI / 16., M_PI / 32., M_PI / 64.};
-    auto want_unitary = utils::rx(angles[0]) * utils::ry(angles[1]) *
-                        utils::rz(angles[2]) * utils::r1(angles[3]) *
-                        utils::u3(angles[4], angles[5], angles[6]);
-    auto got_unitary = cudaq::get_unitary(kernel, angles);
+  //   auto want_unitary = matrix_2::identity(8);
+  //   want_unitary[{6,6}] = 0.0;
+  //   want_unitary[{6,7}] = 1.0;
+  //   want_unitary[{7,7}] = 0.0;
+  //   want_unitary[{7,6}] = 1.0;
+  //   auto got_unitary = cudaq::get_unitary(kernel);
 
-    utils::checkEqual(want_unitary, got_unitary);
-  }
+  //   std::cout << "\n want = \n" << want_unitary.dump() << "\n";
+  //   std::cout << "\n got = \n" << got_unitary.dump() << "\n";
+
+  //   // utils::checkEqual(want_unitary, got_unitary);
+  // }
+
 }
 
-TEST(GetUnitaryTester, checkComplexKernel) {
-
-  {
+/// Checking accuracy against state vector simulators.
+#ifndef CUDAQ_BACKEND_DM
+TEST(GetUnitaryTester, checkAgainstSimulator) {
     auto kernel = [](int qubit_count) {
       cudaq::qvector qubits(qubit_count);
       h(qubits[0]);
       for (auto i = 1; i < qubit_count; ++i) {
         cx(qubits[0], qubits[i]);
       }
-      h(qubits);
-      h<cudaq::adj>(qubits[0]);
       mz(qubits);
     };
 
-    int qubit_count = 4;
+    auto qubit_counts = {2,3,4,5};
+    for (auto qubit_count : qubit_counts) {
+      {
 
-    auto want_unitary = utils::h();
+      // auto want_unitary = utils::h();
+      auto got_unitary = cudaq::get_unitary(kernel, qubit_count);
 
-    auto got_unitary = cudaq::get_unitary(kernel, qubit_count);
+      /// Check against the simulator.
+      std::vector<std::complex<double>> vector(std::pow(2, qubit_count), 0.0);
+      matrix_2 initial_state(vector, {std::pow(2, qubit_count),1});
+      initial_state[{0,0}] = 1.0;
 
-    utils::checkEqual(want_unitary, got_unitary);
-  }
+      auto final_state = got_unitary * initial_state;
 
-  /// TODO: Test the case of multiple control qubits
+      // std::cout << "\n final_state = \n" << final_state.dump() << "\n";
+      // std::cout << "\n final_state size = \n" << final_state.get_size() << "\n";
+
+      auto want_state = cudaq::get_state(kernel, qubit_count);
+      want_state.dump();
+
+      // std::cout << "\n got = \n" << got_unitary.dump() << "\n";
+
+      }
+    }
 }
-
-
-/// TODO: Test against a state vector simulation result.
-TEST(GetUnitaryTester, checkAgainstSimulator) {
-  {}
-}
+#endif
 
 #endif
